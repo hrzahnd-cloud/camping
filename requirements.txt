@@ -1,0 +1,24 @@
+# Backend-Framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# Datenbank
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
+alembic==1.14.0
+
+# Validierung / Settings
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# PDF-Erzeugung (Rechnungen, HESTA-Formular)
+reportlab==4.2.5
+
+# Tests
+pytest==8.3.4
+
+# Zukünftig zu ergänzen, sobald aktiviert (siehe Konzeptdokument):
+# mailchimp-marketing   # Newsletter-Anbindung (Abschnitt 11.3/11.4)
+# zeep                  # SOAP-Client für Feratel Deskline 3.0 (Abschnitt 5)
+# openpyxl               # Excel-Export der Auswertungen (Abschnitt 13)
