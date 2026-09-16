@@ -9,6 +9,7 @@ bei den Infrastruktur-Fachpersonen (Hosting, Zugriffssteuerung, 2FA).
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 
 from app.config import get_settings
 from app.routers import artikel, buchungen, gaeste, rechnungen, reservationsanfragen, auswertungen
@@ -47,3 +48,10 @@ app.include_router(auswertungen.router)
 def health_check():
     """Einfacher Health-Check für Monitoring/Hosting."""
     return {"status": "ok", "app": settings.app_name, "environment": settings.environment}
+
+
+@app.get("/metrics", tags=["System"])
+def metrics() -> PlainTextResponse:
+    """Prometheus-kompatibler Health-Check für das Atoll-Deployment."""
+    body = "# HELP up Ob die Anwendung erreichbar ist.\n# TYPE up gauge\nup 1\n"
+    return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")

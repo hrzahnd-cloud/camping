@@ -17,6 +17,7 @@ reportlab==4.2.5
 
 # Tests
 pytest==8.3.4
+httpx==0.28.1
 
 # Zukünftig zu ergänzen, sobald aktiviert (siehe Konzeptdokument):
 # mailchimp-marketing   # Newsletter-Anbindung (Abschnitt 11.3/11.4)
