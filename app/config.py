@@ -36,6 +36,20 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_absender: str = "info@camping-aeschi.ch"
 
+    # E-Mail-Eingang (Reservationsanfragen per IMAP) – ohne imap_host inaktiv
+    imap_host: str | None = None
+    imap_port: int = 993
+    imap_user: str | None = None
+    imap_password: str | None = None
+    imap_ordner: str = "INBOX"
+    mail_import_intervall_sekunden: int = 300
+    """Abstand der automatischen Abfrage; 0 = nur manuell per Endpoint."""
+
+    # HESTA (BFS): Versand der Monatsmeldung per E-Mail. Aus Sicherheitsgründen
+    # nur aktiv, wenn hesta_email_versand_aktiv ausdrücklich auf true steht.
+    hesta_empfaenger: str = "hotelstatistik@bfs.admin.ch"
+    hesta_email_versand_aktiv: bool = False
+
     # Mailchimp (Newsletter) – bis zur Aktivierung leer/inaktiv
     mailchimp_api_key: str | None = None
     mailchimp_server_prefix: str | None = None

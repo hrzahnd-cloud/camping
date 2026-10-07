@@ -10,7 +10,7 @@ Tourismus (PMS-Partner-Freischaltung noch offen, siehe Konzeptdokument).
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -53,6 +53,14 @@ class HestaMeldung(Base, IDMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), default="entwurf")
     """entwurf | exportiert | eingereicht"""
     pdf_pfad: Mapped[str | None] = mapped_column(String(500))
+    schliessungstage: Mapped[str | None] = mapped_column(Text)
+    """Geschlossene Zeiträume im Meldemonat, je Zeile 'JJJJ-MM-TT/JJJJ-MM-TT'."""
+    belegte_zimmer: Mapped[int | None] = mapped_column(Integer)
+    durchschnittsertrag_pro_logiernacht: Mapped[float | None] = mapped_column(Numeric(8, 2))
+    bemerkung: Mapped[str | None] = mapped_column(Text)
+    eingereicht_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    versandart: Mapped[str | None] = mapped_column(String(20))
+    """email | manuell_pdf (PDF ausgedruckt/selbst erfasst)"""
 
     positionen: Mapped[list["HestaMeldungPosition"]] = relationship(
         back_populates="hesta_meldung", cascade="all, delete-orphan"

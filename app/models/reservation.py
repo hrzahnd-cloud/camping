@@ -31,12 +31,17 @@ class Reservationsanfrage(Base, IDMixin, TimestampMixin):
     sprache: Mapped[str] = mapped_column(String(2), default="de")
     """de | fr | it | en"""
 
+    mail_message_id: Mapped[str | None] = mapped_column(String(255), unique=True)
+    """Message-ID der Original-Mail (Kanal 'email'); verhindert Doppelimporte."""
+
     gast_name: Mapped[str] = mapped_column(String(200))
     gast_email: Mapped[str] = mapped_column(String(255))
     gast_telefon: Mapped[str | None] = mapped_column(String(50))
 
-    gewuenscht_von: Mapped[date] = mapped_column(Date)
-    gewuenscht_bis: Mapped[date] = mapped_column(Date)
+    gewuenscht_von: Mapped[date | None] = mapped_column(Date)
+    gewuenscht_bis: Mapped[date | None] = mapped_column(Date)
+    """Beim Mail-Import ggf. leer, wenn der Zeitraum nicht erkannt wurde
+    (Anfrage gilt dann als unvollständig)."""
     stellplatz_typ: Mapped[str | None] = mapped_column(String(50))
     anzahl_erwachsene: Mapped[int] = mapped_column(Integer, default=1)
     anzahl_kinder: Mapped[int] = mapped_column(Integer, default=0)

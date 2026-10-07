@@ -33,8 +33,8 @@ class ReservationsanfrageOut(BaseModel):
     sprache: str
     gast_name: str
     gast_email: str
-    gewuenscht_von: date
-    gewuenscht_bis: date
+    gewuenscht_von: date | None
+    gewuenscht_bis: date | None
     stellplatz_typ: str | None
     anzahl_erwachsene: int
     anzahl_kinder: int

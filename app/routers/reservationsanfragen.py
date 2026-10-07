@@ -1,52 +1,67 @@
 """
 Reservationsanfragen (Konzeptdokument Abschnitt 10).
 
-Deckt aktuell ab: Anlegen, Auflisten/Filtern, Vollständigkeitsprüfung.
-NICHT enthalten (siehe Konzept, bewusst offen): automatischer E-Mail-Import
-(Kanal 'email' wird heute von einer Person erfasst), Homepage-Formular-
+Deckt ab: Anlegen, Auflisten/Filtern, Vollständigkeitsprüfung und die
+Übernahme von Anfragen aus E-Mails (IMAP-Postfach oder .eml-Datei, siehe
+app/services/mail_import.py).
+NICHT enthalten (siehe Konzept, bewusst offen): Homepage-Formular-
 Anbindung (Abschnitt 10.7 – Entscheidung noch offen), automatischer
 Erstantwort-Versand (Versand ist laut Konzept immer durch eine Person
-ausgelöst, siehe /email-versenden unten als vorbereiteter Endpunkt).
+ausgelöst).
 """
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import Settings, get_settings
 from app.database import get_db
 from app.models.reservation import Reservationsanfrage
 from app.schemas.reservation import ReservationsanfrageCreate, ReservationsanfrageOut
+from app.services.anfrage_pruefung import wende_pruefung_an
+from app.services.mail_import import (
+    MailImportNichtKonfiguriert,
+    importiere_aus_postfach,
+    importiere_mail,
+)
 
 router = APIRouter(prefix="/reservationsanfragen", tags=["Reservationsanfragen"])
 
 
-def _pruefe_vollstaendigkeit(anfrage: Reservationsanfrage) -> tuple[bool, list[str]]:
-    """
-    Prüft die Pflichtfelder einer Anfrage (Konzept Abschnitt 10.1).
-    Gibt (vollstaendig, liste_fehlender_felder) zurück.
-    """
-    fehlend = []
-    if not anfrage.gast_email:
-        fehlend.append("gast_email")
-    if not anfrage.gewuenscht_von or not anfrage.gewuenscht_bis:
-        fehlend.append("zeitraum")
-    elif anfrage.gewuenscht_bis <= anfrage.gewuenscht_von:
-        fehlend.append("zeitraum_ungueltig")
-    if not anfrage.stellplatz_typ:
-        fehlend.append("stellplatz_typ")
-    if anfrage.anzahl_erwachsene < 1:
-        fehlend.append("anzahl_erwachsene")
-    return (len(fehlend) == 0, fehlend)
+@router.post("/mail-import", tags=["Mail-Import"])
+def mail_import_ausloesen(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """Holt ungelesene Mails aus dem IMAP-Postfach und legt Anfragen an."""
+    try:
+        ergebnis = importiere_aus_postfach(db, settings)
+    except MailImportNichtKonfiguriert as exc:
+        raise HTTPException(503, f"Mail-Import nicht konfiguriert: {exc}")
+    except OSError as exc:
+        raise HTTPException(502, f"Postfach nicht erreichbar: {exc}")
+    return {
+        "neu": ergebnis.neu, "duplikate": ergebnis.duplikate,
+        "uebersprungen": ergebnis.uebersprungen, "fehler": ergebnis.fehler,
+    }
+
+
+@router.post("/mail-import/eml", response_model=ReservationsanfrageOut, status_code=201, tags=["Mail-Import"])
+async def mail_aus_eml_importieren(request: Request, db: Session = Depends(get_db)):
+    """Übernimmt eine einzelne Mail (Rohformat .eml im Request-Body), z.B. eine weitergeleitete Anfrage."""
+    roh = await request.body()
+    if not roh:
+        raise HTTPException(400, "Leerer Request-Body: erwartet wird der Inhalt einer .eml-Datei")
+    anfrage, art = importiere_mail(db, roh)
+    if art == "duplikat":
+        raise HTTPException(409, "Diese Mail wurde bereits importiert")
+    if anfrage is None:
+        raise HTTPException(422, "Mail enthält keinen verwertbaren Absender oder ist eine automatische Nachricht")
+    return anfrage
 
 
 @router.post("", response_model=ReservationsanfrageOut, status_code=201)
 def anfrage_anlegen(daten: ReservationsanfrageCreate, db: Session = Depends(get_db)):
     anfrage = Reservationsanfrage(**daten.model_dump())
-    vollstaendig, fehlend = _pruefe_vollstaendigkeit(anfrage)
-    anfrage.vollstaendig = vollstaendig
-    anfrage.fehlende_angaben = ",".join(fehlend) if fehlend else None
-    anfrage.status = "geprueft_vollstaendig" if vollstaendig else "unvollstaendig"
+    wende_pruefung_an(anfrage)
 
     db.add(anfrage)
     db.commit()

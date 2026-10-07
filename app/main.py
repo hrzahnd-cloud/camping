@@ -7,16 +7,54 @@ Start (lokal, Entwicklung):
 Produktiver Betrieb (z.B. hinter Reverse Proxy) liegt gemäss Absprache
 bei den Infrastruktur-Fachpersonen (Hosting, Zugriffssteuerung, 2FA).
 """
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
 from app.config import get_settings
-from app.routers import artikel, buchungen, gaeste, rechnungen, reservationsanfragen, auswertungen
+from app.database import SessionLocal
+from app.routers import artikel, buchungen, gaeste, hesta, rechnungen, reservationsanfragen, auswertungen
+from app.services.mail_import import imap_konfiguriert, importiere_aus_postfach
 
 settings = get_settings()
+log = logging.getLogger("app.mail_import")
+
+
+def _postfach_einmal_abfragen() -> None:
+    db = SessionLocal()
+    try:
+        ergebnis = importiere_aus_postfach(db, settings)
+        if ergebnis.neu or ergebnis.fehler:
+            log.info("Mail-Import: %s neu, %s Fehler", ergebnis.neu, len(ergebnis.fehler))
+    except Exception:
+        log.exception("Mail-Import fehlgeschlagen")
+    finally:
+        db.close()
+
+
+async def _postfach_schleife() -> None:
+    while True:
+        await asyncio.to_thread(_postfach_einmal_abfragen)
+        await asyncio.sleep(settings.mail_import_intervall_sekunden)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Startet die automatische Postfach-Abfrage nur, wenn IMAP konfiguriert ist."""
+    aufgabe = None
+    if imap_konfiguriert(settings) and settings.mail_import_intervall_sekunden > 0:
+        aufgabe = asyncio.create_task(_postfach_schleife())
+    yield
+    if aufgabe:
+        aufgabe.cancel()
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.app_name,
     description=(
         "Backend der Campingverwaltungssoftware. Datenmodell und Fachlogik "
@@ -42,6 +80,7 @@ app.include_router(reservationsanfragen.router)
 app.include_router(artikel.router)
 app.include_router(rechnungen.router)
 app.include_router(auswertungen.router)
+app.include_router(hesta.router)
 
 
 @app.get("/health", tags=["System"])

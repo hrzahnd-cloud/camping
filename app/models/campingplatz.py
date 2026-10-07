@@ -18,6 +18,13 @@ class Campingplatz(Base, IDMixin, TimestampMixin):
     kanton: Mapped[str | None] = mapped_column(String(50))
     gemeinde_nummer: Mapped[str | None] = mapped_column(String(20))
     """BFS-Gemeindenummer, u.a. für Feratel- und HESTA-Meldung relevant."""
+    bur_nummer: Mapped[str | None] = mapped_column(String(20))
+    """BFS-Identifikator des Betriebs (BUR-Nummer) für die HESTA-Meldung;
+    wird auf Anfrage von hotelstatistik@bfs.admin.ch mitgeteilt."""
+    hesta_anzahl_zimmer: Mapped[int | None] = mapped_column(Integer)
+    hesta_anzahl_betten: Mapped[int | None] = mapped_column(Integer)
+    """Betriebskennzahlen der HESTA-Meldung; für Campingbetriebe mit dem BFS
+    zu klären, was als 'Zimmer'/'Betten' zu melden ist."""
 
     stellplaetze: Mapped[list["Stellplatz"]] = relationship(back_populates="campingplatz")
 

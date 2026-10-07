@@ -33,6 +33,7 @@ mit der fachlichen Weiterentwicklung begonnen wird.
 |---|---|
 | Datenmodell (alle Entitäten aus dem Konzept) | ✅ vollständig |
 | Reservationsanfragen: Anlegen, Vollständigkeitsprüfung | ✅ Basis vorhanden |
+| Reservationsanfragen aus E-Mails (IMAP-Postfach, `.eml`-Import) | ✅ fertig, wartet auf `IMAP_*`-Zugangsdaten (`app/services/mail_import.py`) |
 | Gäste, Buchungen, Aufenthalte, Check-in/-out | ✅ Basis vorhanden |
 | Artikel/Saison/MWST: Preisfindung | ✅ funktionsfähig |
 | Rechnungserstellung: Nummernvergabe, MWST-Berechnung, PDF | ✅ funktionsfähig (Datenmodell-Ebene) |
@@ -40,7 +41,8 @@ mit der fachlichen Weiterentwicklung begonnen wird.
 | Grunddaten (Preise camping-aeschi.ch, MWST-Sätze, Saisons 2026) | ✅ `app/seed.py` |
 | E-Mail-Versand (Reservationsantwort, Rechnung) | ⏳ Modell vorhanden, SMTP-Versand noch zu implementieren |
 | Feratel-Schnittstelle (SOAP/XML) | ❌ bewusst nicht implementiert – siehe unten |
-| HESTA-Live-Übermittlung | ⏳ Aggregationslogik fertig, PDF-Befüllung/Upload noch offen |
+| HESTA-Monatsmeldung: Aggregation, PDF, CSV, Meldeprotokoll (`/hesta/...`) | ✅ funktionsfähig |
+| HESTA-Versand per E-Mail ans BFS | ⏳ gebaut, aber gesperrt (`HESTA_EMAIL_VERSAND_AKTIV=false`): braucht BUR-Nummer, SMTP und BFS-Bestätigung des Formats |
 | Mailchimp-Newsletter-Sync | ❌ bewusst nicht implementiert – siehe unten |
 | Kreditkarten-Zahlung | ❌ bewusst nicht implementiert – siehe unten |
 | Excel-Export der Auswertungen | ❌ noch zu bauen (`openpyxl`) |
@@ -113,6 +115,14 @@ Voraussetzungen fehlen, die nicht im Code lösbar sind:
 3. **Kreditkarten-Zahlung** (`Zahlungsanbieterkonfiguration` im
    Datenmodell vorbereitet, aber `aktiv=False`) – braucht einen
    Vertrag mit einem Zahlungsanbieter (Saferpay/Datatrans/Stripe o.ä.).
+
+**HESTA – elektronische Meldung (Stand der Abklärung):** Das BFS bietet
+keine offene API. Die „PMS-Schnittstelle" (bfs.admin.ch → Digitale Eingabe der
+Anzahl Logiernächte) funktioniert so, dass die Software die Zahlen per E-Mail
+an `hotelstatistik@bfs.admin.ch` schickt; vorausgesetzt wird eine BUR-Nummer,
+die das BFS auf Anfrage vergibt. Das Dateiformat ist öffentlich nicht
+dokumentiert. Bis das BFS Format und Freischaltung bestätigt, gilt der
+PDF-Weg (`GET /hesta/pdf`, danach `.../als-eingereicht-markieren`).
 
 Das Datenmodell ist für alle drei Fälle bereits vollständig vorbereitet
 – sobald die externen Voraussetzungen stehen, ist „nur" die jeweilige
