@@ -107,11 +107,22 @@ def seed() -> None:
             altersgruppe_von=0, altersgruppe_bis=15,
             betrag_pro_nacht=Decimal("0.00"), gemeinde_oder_kanton="Aeschi",
         ))
+        # Beherbergungsabgabe Kanton Bern: CHF 1.00 je Nacht, nur Personen ab 16 Jahren
         db.add(Taxensatz(
             typ="beherbergungsabgabe_kanton", gueltig_ab=date(2026, 1, 1), gueltig_bis=None,
-            altersgruppe_von=0, altersgruppe_bis=120,
+            altersgruppe_von=16, altersgruppe_bis=120,
             betrag_pro_nacht=Decimal("1.00"), gemeinde_oder_kanton="Bern",
         ))
+        # Rechnungspositionen für die Taxen; der Preis kommt aus Taxensatz
+        # (app/services/taxen.py), nicht aus ArtikelPreis.
+        for bezeichnung, code in (
+            ("Kurtaxe", "KURTAXE"),
+            ("Beherbergungsabgabe", "BEHERBERGUNGSABGABE"),
+        ):
+            db.add(Artikel(
+                code=code, bezeichnung=bezeichnung, kategorie="taxe",
+                einheit="pro_nacht", mwstsatz_id=mwst_ausgenommen.id,
+            ))
 
         db.commit()
         print("Grunddaten erfolgreich eingespielt.")

@@ -17,7 +17,7 @@ from fastapi.responses import PlainTextResponse
 
 from app.config import get_settings
 from app.database import SessionLocal
-from app.routers import artikel, buchungen, gaeste, hesta, rechnungen, reservationsanfragen, auswertungen
+from app.routers import artikel, buchungen, feratel, gaeste, hesta, rechnungen, reservationsanfragen, auswertungen
 from app.services.mail_import import imap_konfiguriert, importiere_aus_postfach
 
 settings = get_settings()
@@ -81,6 +81,7 @@ app.include_router(artikel.router)
 app.include_router(rechnungen.router)
 app.include_router(auswertungen.router)
 app.include_router(hesta.router)
+app.include_router(feratel.router)
 
 
 @app.get("/health", tags=["System"])

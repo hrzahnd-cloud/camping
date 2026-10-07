@@ -37,6 +37,8 @@ mit der fachlichen Weiterentwicklung begonnen wird.
 | Gäste, Buchungen, Aufenthalte, Check-in/-out | ✅ Basis vorhanden |
 | Artikel/Saison/MWST: Preisfindung | ✅ funktionsfähig |
 | Rechnungserstellung: Nummernvergabe, MWST-Berechnung, PDF | ✅ funktionsfähig (Datenmodell-Ebene) |
+| Kurtaxe (Aeschi, CHF 3.50) und Beherbergungsabgabe (Kanton Bern, CHF 1.00): je Nacht, nur Personen ab 16 Jahren, automatisch auf der Rechnung (`app/services/taxen.py`, Vorschau: `GET /rechnungen/taxen-vorschau`) | ✅ funktionsfähig |
+| Feratel-Gästemeldung: Meldeschein-Vorbereitung für den WebClient, Prüfung der Pflichtangaben, Protokoll der Meldescheinnummer (`/feratel/...`) | ✅ funktionsfähig (manueller Weg) |
 | Auswertungen (Umsatz nach Kunde/Monat/Artikel, Zahlungsmethoden) | ✅ Basis vorhanden (nur JSON, kein Excel/PDF-Export) |
 | Grunddaten (Preise camping-aeschi.ch, MWST-Sätze, Saisons 2026) | ✅ `app/seed.py` |
 | E-Mail-Versand (Reservationsantwort, Rechnung) | ⏳ Modell vorhanden, SMTP-Versand noch zu implementieren |

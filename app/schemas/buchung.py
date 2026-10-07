@@ -9,6 +9,7 @@ class GastCreate(BaseModel):
     nachname: str
     geburtsdatum: date | None = None
     nationalitaet: str | None = None
+    strasse: str | None = None
     plz: str | None = None
     ort: str | None = None
     land: str | None = None

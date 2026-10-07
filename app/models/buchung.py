@@ -18,6 +18,8 @@ class Gast(Base, IDMixin, TimestampMixin):
     geburtsdatum: Mapped[date | None] = mapped_column(Date)
     nationalitaet: Mapped[str | None] = mapped_column(String(2))
     """ISO-3166-1 alpha-2 Ländercode, zentrale Dimension für Feratel & HESTA."""
+    strasse: Mapped[str | None] = mapped_column(String(200))
+    """Pflichtfeld des Feratel-Meldescheins (Hauptgast)."""
     plz: Mapped[str | None] = mapped_column(String(20))
     ort: Mapped[str | None] = mapped_column(String(100))
     land: Mapped[str | None] = mapped_column(String(2))

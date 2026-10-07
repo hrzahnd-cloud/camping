@@ -36,7 +36,10 @@ class FeratelMeldung(Base, IDMixin, TimestampMixin):
     gesendet_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     xml_payload: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="offen")
-    """offen | erfolgreich | fehler"""
+    """offen | erfolgreich | fehler | manuell_erfasst (im feratel WebClient)"""
+    meldescheinnummer: Mapped[str | None] = mapped_column(String(50))
+    """Nummer des Meldescheins im feratel WebClient; nötig, falls Thun-Thunersee
+    Tourismus einen Meldeschein stornieren soll (Vermieter können nicht selbst löschen)."""
     fehlercode: Mapped[str | None] = mapped_column(String(50))
     antwort_roh: Mapped[str | None] = mapped_column(Text)
 

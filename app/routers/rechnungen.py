@@ -29,6 +29,7 @@ from app.services.pdf_rechnung import (
     erzeuge_rechnung_pdf,
 )
 from app.services.rechnungsnummer import naechste_rechnungsnummer
+from app.services.taxen import berechne_taxen_fuer_buchung
 
 router = APIRouter(prefix="/rechnungen", tags=["Rechnungen"])
 
@@ -63,12 +64,40 @@ def _ermittle_preis_und_mwst(db: Session, artikel: Artikel, stichtag: date) -> t
     return Decimal(str(preis_row.preis)), Decimal(str(artikel.mwstsatz.satz_prozent))
 
 
+@router.get("/taxen-vorschau")
+def taxen_vorschau(buchung_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Kurtaxe und Beherbergungsabgabe einer Buchung, wie sie auf der Rechnung erscheinen würden."""
+    buchung = db.get(Buchung, buchung_id)
+    if not buchung:
+        raise HTTPException(404, "Buchung nicht gefunden")
+    ergebnis = berechne_taxen_fuer_buchung(db, buchung)
+    return {
+        "positionen": [
+            {
+                "bezeichnung": p.bezeichnung, "personennaechte": p.personennaechte,
+                "einzelpreis": float(p.einzelpreis), "betrag": float(p.betrag),
+            }
+            for p in ergebnis.positionen
+        ],
+        "total": float(ergebnis.total),
+        "warnungen": ergebnis.warnungen,
+    }
+
+
 @router.post("", response_model=RechnungOut, status_code=201)
 def rechnung_erstellen(
     buchung_id: uuid.UUID,
     positionen: list[RechnungspositionCreate],
+    mit_taxen: bool = True,
     db: Session = Depends(get_db),
 ):
+    """
+    Erstellt die Rechnung aus den übergebenen Positionen. Kurtaxe und
+    Beherbergungsabgabe werden automatisch aus Aufenthalten (Nächte, Alter
+    der Gäste) berechnet und angefügt (`mit_taxen=false` schaltet das ab).
+    Sind unter den übergebenen Positionen bereits Taxen-Artikel, werden
+    keine zusätzlichen berechnet, damit nichts doppelt verrechnet wird.
+    """
     buchung = db.get(Buchung, buchung_id)
     if not buchung:
         raise HTTPException(404, "Buchung nicht gefunden")
@@ -91,11 +120,13 @@ def rechnung_erstellen(
 
     gesamt = Decimal("0")
     mwst_gesamt = Decimal("0")
+    taxen_schon_enthalten = False
 
     for pos_input in positionen:
         artikel = db.get(Artikel, pos_input.artikel_id)
         if not artikel:
             raise HTTPException(404, f"Artikel {pos_input.artikel_id} nicht gefunden")
+        taxen_schon_enthalten = taxen_schon_enthalten or artikel.kategorie == "taxe"
 
         einzelpreis, mwst_prozent = _ermittle_preis_und_mwst(db, artikel, heute)
         menge = Decimal(str(pos_input.menge))
@@ -113,6 +144,27 @@ def rechnung_erstellen(
         ))
         gesamt += betrag
         mwst_gesamt += mwst_betrag
+
+    if mit_taxen and not taxen_schon_enthalten:
+        for tax in berechne_taxen_fuer_buchung(db, buchung).positionen:
+            artikel = db.execute(select(Artikel).where(Artikel.code == tax.artikel_code)).scalar_one_or_none()
+            if artikel is None:
+                raise HTTPException(
+                    400, f"Taxen-Artikel '{tax.artikel_code}' fehlt (Grunddaten einspielen: python -m app.seed)"
+                )
+            mwst_prozent = Decimal(str(artikel.mwstsatz.satz_prozent))
+            mwst_betrag = mwst_betrag_aus_brutto(tax.betrag, mwst_prozent)
+            db.add(Rechnungsposition(
+                rechnung_id=rechnung.id,
+                artikel_id=artikel.id,
+                menge=Decimal(tax.personennaechte),
+                einzelpreis=tax.einzelpreis,
+                betrag=tax.betrag,
+                mwstsatz_prozent=mwst_prozent,
+                mwst_betrag=mwst_betrag,
+            ))
+            gesamt += tax.betrag
+            mwst_gesamt += mwst_betrag
 
     rechnung.gesamtbetrag = gesamt
     rechnung.mwst_betrag_total = mwst_gesamt

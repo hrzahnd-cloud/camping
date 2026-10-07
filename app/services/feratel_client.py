@@ -16,7 +16,8 @@ Sobald die WSDL vorliegt, ist hier zu ergänzen:
   3. Antwort auswerten, FeratelMeldung.status/fehlercode/antwort_roh setzen
 
 Bis dahin liefert `sende_meldung()` einen klaren Fehler, statt so zu tun,
-als würde eine echte Übertragung stattfinden.
+als würde eine echte Übertragung stattfinden. Der manuelle Weg über den
+feratel WebClient wird in app/services/feratel_meldeschein.py vorbereitet.
 """
 from app.models.buchung import Aufenthalt
 from app.models.meldungen import FeratelKonfiguration, FeratelMeldung
