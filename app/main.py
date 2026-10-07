@@ -53,5 +53,9 @@ def health_check():
 @app.get("/metrics", tags=["System"])
 def metrics() -> PlainTextResponse:
     """Prometheus-kompatibler Health-Check für das Atoll-Deployment."""
-    body = "# HELP up Ob die Anwendung erreichbar ist.\n# TYPE up gauge\nup 1\n"
+    body = (
+        "# HELP up Ob die Anwendung erreichbar ist.\n# TYPE up gauge\nup 1\n"
+        "# HELP app_info Versionsinformation der Anwendung.\n# TYPE app_info gauge\n"
+        'app_info{version="0.1.0"} 1\n'
+    )
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
