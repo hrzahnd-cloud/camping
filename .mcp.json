@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "atoll": {
+      "type": "http",
+      "url": "https://atoll.eutima.ch/mcp"
+    }
+  }
+}

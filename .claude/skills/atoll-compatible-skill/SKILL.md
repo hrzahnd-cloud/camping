@@ -84,7 +84,7 @@ operator-side setting):
 - Does this app run a background worker process?
 - Will this app need a custom domain?
 
-Don't guess these — they change what you build in steps 3–6.
+Don't guess these — they change what you build in steps 3–7.
 
 ### 3. Root Dockerfile
 
@@ -190,15 +190,60 @@ to validate your changes:
   `HOST_PORT` variable on their end and configure the domain in the Atoll
   console.
 
-### 8. Final summary
+### 8. Register the Atoll MCP server (`.mcp.json`)
+
+Make sure the repo root has a project-level `.mcp.json` that registers the
+Atoll MCP server, so any AI agent opened in this repo can manage its Atoll
+environments and deployments (it logs in to Atoll in the browser on first use -
+never put a token or `headers` in this file):
+
+```json
+{
+  "mcpServers": {
+    "atoll": {
+      "type": "http",
+      "url": "https://atoll.eutima.ch/mcp"
+    }
+  }
+}
+```
+
+- **No `.mcp.json` yet**: create it with exactly the content above.
+- **`.mcp.json` already exists** (other MCP servers registered): **merge**, don't
+  overwrite. Parse it, add the `atoll` entry under `mcpServers` and keep every
+  other server and top-level key exactly as it is. If an `atoll` entry already
+  exists, set its `type`/`url` to the values above and leave the rest of the
+  file untouched. Keep the file valid JSON (no comments, no trailing commas) and
+  preserve its existing indentation style.
+- Don't add `.mcp.json` to `.gitignore` - it's meant to be committed so everyone
+  working on the repo gets the server.
+
+An agent only reads `.mcp.json` when a session starts: if you created or
+changed it, tell the user to close this session and open a new one in the repo
+to pick up the Atoll MCP server (and to approve it when their agent asks).
+
+Once connected, the MCP tools are used through the companion skills that ship in
+the same Atoll skills bundle - make sure they're present under `.claude/skills/`
+(`atoll-environments/`, `atoll-variables/`, `atoll-deploy/`; if they're missing,
+the user can fetch them with `atoll skills sync`):
+
+- `atoll-environments` - create/list/configure environments, domains, volumes.
+- `atoll-variables` - set the environment's variables and secrets.
+- `atoll-deploy` - deploy an environment and handle failed deployments.
+
+### 9. Final summary
 
 Report back concisely:
 - What files you created/changed (Dockerfile, health-check route,
-  `.env.example`, any config changes for DB/worker env var names, any test
-  files added).
+  `.env.example`, `.mcp.json`, any config changes for DB/worker env var names,
+  any test files added).
 - For Python projects: confirmation that `pytest` runs and passes.
 - The exact container port and health-check path the app now serves, and
   which profile that matches.
+- If `.mcp.json` was created or changed: a reminder to close this AI agent
+  session and start a new one so the Atoll MCP server is loaded.
+- Next steps via the MCP skills: create the environment(s) (`atoll-environments`),
+  set their variables (`atoll-variables`), then deploy (`atoll-deploy`).
 - A short checklist of what's left for the user to coordinate with their
   Atoll operator, e.g.:
   - Confirm/select the matching deployment profile for this repo.
