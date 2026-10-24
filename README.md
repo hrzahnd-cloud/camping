@@ -150,6 +150,14 @@ entsprechenden Fachpersonen übernommen. Für sie relevant:
   andere Lösung zum Einsatz kommt. CORS ist aktuell offen (`*`) und
   MUSS vor Produktivbetrieb auf die echte Frontend-Domain eingeschränkt
   werden (`app/main.py`).
+- **CA-Zertifikate im Docker-Image:** stammen aus dem Debian-Paket
+  `ca-certificates` (System) und aus `certifi` (httpx). Der Build prüft
+  beide Vertrauensspeicher mit `scripts/check_ca_bundle.py` und bricht bei
+  unsicheren oder vom eMudhra-Vorfall (Oktober 2026) betroffenen
+  Zertifikaten ab. Nach Sicherheitsmeldungen zu CA-Zertifikaten das Image
+  ohne Cache neu bauen:
+  `docker build --pull --no-cache -t campingverwaltung .`
+  Details: `docs/sicherheit-ca-zertifikate.md`.
 
 ## Empfohlene nächste Schritte
 

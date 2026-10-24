@@ -15,6 +15,7 @@ import hashlib
 import imaplib
 import logging
 import re
+import ssl
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from email import message_from_bytes, policy
@@ -307,7 +308,15 @@ def importiere_aus_postfach(db: Session, settings: Settings, max_mails: int = 50
         raise MailImportNichtKonfiguriert("IMAP_HOST, IMAP_USER und IMAP_PASSWORD sind nicht gesetzt.")
 
     ergebnis = ImportErgebnis()
-    verbindung = imaplib.IMAP4_SSL(settings.imap_host, settings.imap_port, timeout=30)
+    # Ohne ssl_context verwendet imaplib einen Kontext OHNE Zertifikats- und
+    # Hostnamenprüfung. create_default_context() prüft gegen den System-
+    # Vertrauensspeicher (/etc/ssl/certs, Paket ca-certificates).
+    verbindung = imaplib.IMAP4_SSL(
+        settings.imap_host,
+        settings.imap_port,
+        ssl_context=ssl.create_default_context(),
+        timeout=30,
+    )
     try:
         verbindung.login(settings.imap_user, settings.imap_password)
         verbindung.select(settings.imap_ordner)
