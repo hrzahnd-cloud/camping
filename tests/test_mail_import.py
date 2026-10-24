@@ -122,3 +122,32 @@ def test_eml_endpoint(client):
 
 def test_postfach_import_ohne_zugangsdaten_meldet_503(client):
     assert client.post("/reservationsanfragen/mail-import").status_code == 503
+
+
+def test_imap_verbindung_prueft_zertifikat_und_hostname(monkeypatch, db):
+    """Der IMAP-Import muss das Serverzertifikat gegen den System-Vertrauensspeicher prüfen."""
+    import ssl
+
+    import pytest
+
+    from app.config import Settings
+    from app.services import mail_import
+
+    aufrufe = {}
+
+    class Abbruch(Exception):
+        pass
+
+    def fake_imap4_ssl(host, port, **kwargs):
+        aufrufe.update(kwargs, host=host, port=port)
+        raise Abbruch
+
+    monkeypatch.setattr(mail_import.imaplib, "IMAP4_SSL", fake_imap4_ssl)
+    settings = Settings(imap_host="imap.example.ch", imap_user="u", imap_password="p")
+    with pytest.raises(Abbruch):
+        mail_import.importiere_aus_postfach(db, settings)
+
+    kontext = aufrufe.get("ssl_context")
+    assert isinstance(kontext, ssl.SSLContext)
+    assert kontext.verify_mode == ssl.CERT_REQUIRED
+    assert kontext.check_hostname is True

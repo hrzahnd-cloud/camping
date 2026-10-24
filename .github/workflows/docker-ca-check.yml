@@ -1,0 +1,39 @@
+name: Docker-Image und CA-Zertifikate prüfen
+
+# Baut das Image ohne Cache und mit frischem Base Image und prüft die
+# Vertrauensspeicher (siehe docs/sicherheit-ca-zertifikate.md).
+# Deployt nichts.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1" # wöchentlich: neue CA-Sicherheitsmeldungen erkennen
+
+permissions:
+  contents: read
+
+jobs:
+  build-und-pruefung:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image ohne Cache bauen (Build prüft CA-Bundles selbst)
+        run: docker build --pull --no-cache --progress=plain -t campingverwaltung:ci .
+
+      - name: Stand der Vertrauensspeicher im Image
+        run: |
+          docker run --rm campingverwaltung:ci sh -c '
+            dpkg-query -W ca-certificates
+            python -c "import certifi; print(\"certifi\", certifi.__version__)"
+            test ! -e /app/.venv && test ! -e /app/.env && echo "keine .venv/.env im Image"
+            python -I /usr/local/bin/check_ca_bundle.py --strict-aaa /etc/ssl/certs "$(python -c "import certifi; print(certifi.where())")"
+          '
+
+      - name: TLS-Probe (normale Hosts ok, eMudhra-Testhosts abgelehnt)
+        run: docker run --rm campingverwaltung:ci python scripts/tls_probe.py
+
+      - name: Projekttests im Image
+        run: docker run --rm campingverwaltung:ci python -m pytest -q

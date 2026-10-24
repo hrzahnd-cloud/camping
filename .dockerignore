@@ -1,0 +1,23 @@
+# Nicht ins Docker-Image kopieren.
+# Wichtig für die CA-Zertifikate: die lokale .venv enthält ein eigenes
+# certifi-Bundle (cacert.pem), das veraltet sein kann und sonst mit
+# "COPY . ." im Image landet. Ausserdem gehören Secrets (.env) und das
+# Git-Verzeichnis nicht ins Image.
+.git
+.gitignore
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+*.egg-info/
+generierte_dokumente/
+.claude/
+.mcp.json
+frontend-prototyp/
+docs/
+Dockerfile
+.dockerignore

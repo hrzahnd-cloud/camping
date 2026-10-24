@@ -19,6 +19,11 @@ reportlab==4.2.5
 pytest==8.3.4
 httpx==0.28.1
 
+# CA-Bundle für httpx (transitive Abhängigkeit, hier bewusst mit Untergrenze
+# statt fester Version, damit jeder Build das aktuelle Bundle erhält).
+# >= 2026.10.19: "emSign ECC Root CA - G3" entfernt (eMudhra-Vorfall).
+certifi>=2026.10.19
+
 # Zukünftig zu ergänzen, sobald aktiviert (siehe Konzeptdokument):
 # mailchimp-marketing   # Newsletter-Anbindung (Abschnitt 11.3/11.4)
 # zeep                  # SOAP-Client für Feratel Deskline 3.0 (Abschnitt 5)
