@@ -50,6 +50,13 @@ RUN set -e; \
     [ -e /etc/ssl/cert.pem ] && pfade="$pfade /etc/ssl/cert.pem"; \
     python -I /usr/local/bin/check_ca_bundle.py --strict-aaa $pfade
 
+# Keine verwundbare Node.js-Laufzeit im Image (Node2Shell, CVE-2026-111497,
+# und weitere Fixes vom 21.10.2026). Das Image braucht kein Node.js. Die
+# Prüfung schlägt an, falls ein Base Image oder ein Python-Paket (z.B. mit
+# eingebettetem Node wie playwright) eine alte Version mitbringt.
+COPY scripts/check_node_versions.py /usr/local/bin/check_node_versions.py
+RUN python -I /usr/local/bin/check_node_versions.py /
+
 COPY . .
 
 # Keine zusätzlichen (veralteten) Zertifikats-Bundles mit dem Quellcode

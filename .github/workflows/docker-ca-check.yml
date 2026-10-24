@@ -1,15 +1,15 @@
-name: Docker-Image und CA-Zertifikate prüfen
+name: Docker-Image, CA-Zertifikate und Node.js prüfen
 
 # Baut das Image ohne Cache und mit frischem Base Image und prüft die
-# Vertrauensspeicher (siehe docs/sicherheit-ca-zertifikate.md).
-# Deployt nichts.
+# Vertrauensspeicher (docs/sicherheit-ca-zertifikate.md) sowie die
+# Node.js-Laufzeiten (docs/sicherheit-node2shell.md). Deployt nichts.
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: "17 5 * * 1" # wöchentlich: neue CA-Sicherheitsmeldungen erkennen
+    - cron: "17 5 * * 1" # wöchentlich: neue Sicherheitsmeldungen erkennen
 
 permissions:
   contents: read
@@ -18,9 +18,23 @@ jobs:
   build-und-pruefung:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # v7 läuft auf der Node-24-Laufzeit des Runners (v4 lief auf Node 20,
+      # End-of-Life, von CVE-2026-111497 nicht mehr korrigiert).
+      # Per Commit-SHA gepinnt.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Image ohne Cache bauen (Build prüft CA-Bundles selbst)
+      - name: Node.js-Laufzeiten des GitHub-Runners (nur Hinweis, von GitHub verwaltet)
+        run: |
+          set -e
+          dirs=$(find / -maxdepth 6 -type d -name externals -path '*runner*' 2>/dev/null || true)
+          echo "Runner-Verzeichnisse: ${dirs:-keine gefunden}"
+          if ! python3 -I scripts/check_node_versions.py $dirs; then
+            echo "::warning title=Node.js im Runner::Der GitHub-Runner bringt eine Node.js-Version ohne die Fixes vom 21.10.2026 mit (siehe Log). Wird von GitHub aktualisiert, nicht vom Projekt."
+          fi
+
+      - name: Image ohne Cache bauen (Build prüft CA-Bundles und Node.js selbst)
         run: docker build --pull --no-cache --progress=plain -t campingverwaltung:ci .
 
       - name: Stand der Vertrauensspeicher im Image
@@ -30,6 +44,14 @@ jobs:
             python -c "import certifi; print(\"certifi\", certifi.__version__)"
             test ! -e /app/.venv && test ! -e /app/.env && echo "keine .venv/.env im Image"
             python -I /usr/local/bin/check_ca_bundle.py --strict-aaa /etc/ssl/certs "$(python -c "import certifi; print(certifi.where())")"
+          '
+
+      - name: Node.js im finalen Runtime-Image (CVE-2026-111497)
+        run: |
+          docker run --rm campingverwaltung:ci sh -c '
+            echo "node im PATH: $(command -v node nodejs || echo keins)"
+            dpkg -l | grep -Ei "nodejs|libnode" || echo "kein nodejs/libnode-Paket installiert"
+            python -I /usr/local/bin/check_node_versions.py /
           '
 
       - name: TLS-Probe (normale Hosts ok, eMudhra-Testhosts abgelehnt)
