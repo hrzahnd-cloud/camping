@@ -158,6 +158,9 @@ entsprechenden Fachpersonen übernommen. Für sie relevant:
   ohne Cache neu bauen:
   `docker build --pull --no-cache -t campingverwaltung .`
   Details: `docs/sicherheit-ca-zertifikate.md`.
+- **Node.js:** Das Image enthält kein Node.js. Der Build bricht ab, falls
+  eine verwundbare Node-Laufzeit hineingerät (Node2Shell, CVE-2026-111497;
+  `scripts/check_node_versions.py`). Details: `docs/sicherheit-node2shell.md`.
 
 ## Empfohlene nächste Schritte
 
