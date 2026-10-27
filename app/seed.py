@@ -7,12 +7,35 @@ Gespräch genannte Satz von 3.6% war 2018-2023 gültig; VOR dem produktiven
 Einsatz mit Treuhänder/ESTV verifizieren (Konzeptdokument Abschnitt 9.1).
 
 Ausführen mit:  python -m app.seed
+Beim Container-Start:  python -m app.seed --falls-leer
+  (spielt nur ein, wenn noch keine MWST-Sätze vorhanden sind, also bei einer
+  frischen Datenbank; bestehende Daten werden nie verändert)
 """
+import sys
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy import select
+
 from app.database import SessionLocal
 from app.models import Artikel, ArtikelPreis, Mwstsatz, Saison, Taxensatz
+
+
+def grunddaten_vorhanden(db) -> bool:
+    return db.scalar(select(Mwstsatz.id).limit(1)) is not None
+
+
+def seed_falls_leer() -> bool:
+    """Spielt die Grunddaten nur in eine leere Datenbank ein. True = eingespielt."""
+    db = SessionLocal()
+    try:
+        if grunddaten_vorhanden(db):
+            print("Grunddaten bereits vorhanden, nichts eingespielt.")
+            return False
+    finally:
+        db.close()
+    seed()
+    return True
 
 
 def seed() -> None:
@@ -131,4 +154,7 @@ def seed() -> None:
 
 
 if __name__ == "__main__":
-    seed()
+    if "--falls-leer" in sys.argv[1:]:
+        seed_falls_leer()
+    else:
+        seed()

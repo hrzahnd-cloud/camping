@@ -77,6 +77,8 @@ alembic revision --autogenerate -m "initiales Schema"
 alembic upgrade head
 
 # 7. Grunddaten einspielen (Preise, MWST-Sätze, Saisons)
+#    Im Docker-Container geschieht das beim Start automatisch, aber nur
+#    bei leerer Datenbank (python -m app.seed --falls-leer).
 python -m app.seed
 
 # 8. Server starten

@@ -8,6 +8,7 @@ das übernehmen gemäss Absprache die Fachpersonen für Infrastruktur.
 from functools import lru_cache
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL
 
 
 class Settings(BaseSettings):
@@ -66,10 +67,15 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _fallback_database_url(self) -> "Settings":
         if not self.database_url:
-            self.database_url = (
-                f"postgresql+psycopg://{self.db_user}:{self.db_password}"
-                f"@{self.db_host}:{self.db_port}/{self.db_name}"
-            )
+            # URL.create maskiert Sonderzeichen (z.B. "@" im Passwort) korrekt.
+            self.database_url = URL.create(
+                "postgresql+psycopg",
+                username=self.db_user,
+                password=self.db_password or None,
+                host=self.db_host,
+                port=self.db_port,
+                database=self.db_name,
+            ).render_as_string(hide_password=False)
         return self
 
 
