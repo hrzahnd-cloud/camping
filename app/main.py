@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse
 
 from app.config import get_settings
 from app.database import SessionLocal
@@ -82,6 +82,12 @@ app.include_router(rechnungen.router)
 app.include_router(auswertungen.router)
 app.include_router(hesta.router)
 app.include_router(feratel.router)
+
+
+@app.get("/", include_in_schema=False)
+def startseite() -> RedirectResponse:
+    """Noch keine Bedienoberfläche: Startseite führt zur API-Dokumentation."""
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health", tags=["System"])

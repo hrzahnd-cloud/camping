@@ -67,4 +67,7 @@ RUN set -e; \
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic upgrade head || echo 'WARNUNG: Datenbankmigration fehlgeschlagen' >&2; exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Start: Migrationen, Grunddaten nur in eine leere Datenbank, dann Server.
+# Fehler bei Migration/Grunddaten werden gemeldet, verhindern den Start aber nicht
+# (Health-Check /metrics bleibt erreichbar, Fehler stehen im Log).
+CMD ["sh", "-c", "alembic upgrade head || echo 'WARNUNG: Datenbankmigration fehlgeschlagen' >&2; python -m app.seed --falls-leer || echo 'WARNUNG: Grunddaten konnten nicht eingespielt werden' >&2; exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
