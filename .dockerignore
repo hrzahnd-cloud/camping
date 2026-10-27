@@ -21,3 +21,5 @@ frontend-prototyp/
 docs/
 Dockerfile
 .dockerignore
+frontend/node_modules/
+frontend/dist/

@@ -10,14 +10,27 @@ bei den Infrastruktur-Fachpersonen (Hosting, Zugriffssteuerung, 2FA).
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import SessionLocal
-from app.routers import artikel, buchungen, feratel, gaeste, hesta, rechnungen, reservationsanfragen, auswertungen
+from app.routers import (
+    artikel,
+    auswertungen,
+    belegung,
+    buchungen,
+    einstellungen,
+    feratel,
+    gaeste,
+    hesta,
+    rechnungen,
+    reservationsanfragen,
+)
 from app.services.mail_import import imap_konfiguriert, importiere_aus_postfach
 
 settings = get_settings()
@@ -82,11 +95,24 @@ app.include_router(rechnungen.router)
 app.include_router(auswertungen.router)
 app.include_router(hesta.router)
 app.include_router(feratel.router)
+app.include_router(belegung.router)
+app.include_router(einstellungen.router)
+
+
+# Bedienoberfläche (React, gebaut nach frontend/dist, siehe Dockerfile).
+# Die Seiten der Oberfläche nutzen Hash-Adressen (/#/reservationen), damit sie
+# nie mit den API-Pfaden (/reservationsanfragen, /gaeste, ...) kollidieren.
+OBERFLAECHE = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if (OBERFLAECHE / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=OBERFLAECHE / "assets"), name="oberflaeche")
 
 
 @app.get("/", include_in_schema=False)
-def startseite() -> RedirectResponse:
-    """Noch keine Bedienoberfläche: Startseite führt zur API-Dokumentation."""
+def startseite():
+    """Bedienoberfläche; ohne gebaute Oberfläche (lokale Entwicklung) die API-Doku."""
+    index = OBERFLAECHE / "index.html"
+    if index.is_file():
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
     return RedirectResponse(url="/docs")
 
 

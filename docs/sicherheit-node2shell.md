@@ -95,6 +95,14 @@ docker run --rm campingverwaltung:node-check python -I /usr/local/bin/check_node
 ```
 Erwartet: `Keine Node.js-Laufzeit gefunden.` und `ERGEBNIS: OK`.
 
+## 6a. Nachtrag 27.10.2026: Bedienoberfläche
+
+Seit der Bedienoberfläche (React) verwendet der Docker-Build Node.js, aber **nur in der
+Build-Stufe** `node:24.22.1-trixie-slim` (korrigierte Version, Prüfung im Build). Das laufende
+Image enthält weiterhin kein Node.js; `check_node_versions.py /` im Build und der CI-Schritt
+„Node.js im finalen Runtime-Image“ stellen das sicher. `frontend/package.json` verlangt per
+`engines` eine korrigierte Version, `frontend/.nvmrc` nennt 24.22.1.
+
 ## 7. Quellen
 
 - [Node.js – October 2026 Security Releases (offiziell)](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)

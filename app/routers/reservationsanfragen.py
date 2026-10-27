@@ -18,7 +18,13 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.database import get_db
 from app.models.reservation import Reservationsanfrage
-from app.schemas.reservation import ReservationsanfrageCreate, ReservationsanfrageOut
+from app.schemas.reservation import (
+    ReservationsanfrageCreate,
+    ReservationsanfrageDetail,
+    ReservationsanfrageOut,
+    ReservationsanfrageUpdate,
+    StatusAenderung,
+)
 from app.services.anfrage_pruefung import wende_pruefung_an
 from app.services.mail_import import (
     MailImportNichtKonfiguriert,
@@ -84,7 +90,7 @@ def anfragen_auflisten(
     return db.execute(stmt).scalars().all()
 
 
-@router.get("/{anfrage_id}", response_model=ReservationsanfrageOut)
+@router.get("/{anfrage_id}", response_model=ReservationsanfrageDetail)
 def anfrage_lesen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
     anfrage = db.get(Reservationsanfrage, anfrage_id)
     if not anfrage:
@@ -92,7 +98,50 @@ def anfrage_lesen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
     return anfrage
 
 
-@router.post("/{anfrage_id}/zahlung-bestaetigen", response_model=ReservationsanfrageOut)
+@router.patch("/{anfrage_id}", response_model=ReservationsanfrageDetail)
+def anfrage_aendern(anfrage_id: uuid.UUID, daten: ReservationsanfrageUpdate, db: Session = Depends(get_db)):
+    """Angaben ändern bzw. nachtragen; die Vollständigkeit wird neu geprüft."""
+    anfrage = db.get(Reservationsanfrage, anfrage_id)
+    if not anfrage:
+        raise HTTPException(404, "Reservationsanfrage nicht gefunden")
+    for feld, wert in daten.model_dump(exclude_unset=True).items():
+        setattr(anfrage, feld, wert)
+    wende_pruefung_an(anfrage)
+    db.commit()
+    db.refresh(anfrage)
+    return anfrage
+
+
+# Status, die nur eine vollständige Anfrage erreichen darf
+_STATUS_NUR_VOLLSTAENDIG = {"erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert"}
+
+
+@router.post("/{anfrage_id}/status", response_model=ReservationsanfrageDetail)
+def status_setzen(anfrage_id: uuid.UUID, daten: StatusAenderung, db: Session = Depends(get_db)):
+    """
+    Setzt den Bearbeitungsstatus (Konzept 10.2–10.5), z.B. "Erstantwort
+    gesendet" oder "abgelehnt". Die Mail selbst wird (noch) ausserhalb
+    verschickt; hier wird nur festgehalten, wo die Anfrage steht.
+    """
+    anfrage = db.get(Reservationsanfrage, anfrage_id)
+    if not anfrage:
+        raise HTTPException(404, "Reservationsanfrage nicht gefunden")
+    if daten.status in _STATUS_NUR_VOLLSTAENDIG and not anfrage.vollstaendig:
+        raise HTTPException(
+            400, f"Anfrage ist unvollständig ({anfrage.fehlende_angaben}) – zuerst Angaben ergänzen"
+        )
+    if daten.status in {"neu", "unvollstaendig", "geprueft_vollstaendig"}:
+        # zurück in die Prüfung: Status ergibt sich aus der Vollständigkeit
+        anfrage.status = "neu"
+        wende_pruefung_an(anfrage)
+    else:
+        anfrage.status = daten.status
+    db.commit()
+    db.refresh(anfrage)
+    return anfrage
+
+
+@router.post("/{anfrage_id}/zahlung-bestaetigen", response_model=ReservationsanfrageDetail)
 def zahlung_bestaetigen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
     """
     Markiert die Anzahlung als eingegangen (Konzept Abschnitt 10.5).
