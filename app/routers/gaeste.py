@@ -2,7 +2,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -25,8 +25,12 @@ def gast_anlegen(daten: GastCreate, db: Session = Depends(get_db)):
 def gaeste_auflisten(suche: str | None = None, db: Session = Depends(get_db)):
     stmt = select(Gast)
     if suche:
-        stmt = stmt.where(Gast.nachname.ilike(f"%{suche}%"))
-    stmt = stmt.order_by(Gast.nachname)
+        muster = f"%{suche}%"
+        stmt = stmt.where(or_(
+            Gast.nachname.ilike(muster), Gast.vorname.ilike(muster),
+            Gast.ort.ilike(muster), Gast.email.ilike(muster),
+        ))
+    stmt = stmt.order_by(Gast.nachname, Gast.vorname)
     return db.execute(stmt).scalars().all()
 
 

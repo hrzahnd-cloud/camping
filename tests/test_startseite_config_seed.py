@@ -12,10 +12,24 @@ from app.main import app
 from app.models import Artikel, Base, Mwstsatz
 
 
-def test_startseite_leitet_auf_api_doku_weiter():
+def test_startseite_ohne_gebaute_oberflaeche_leitet_auf_api_doku(monkeypatch, tmp_path):
+    import app.main as hauptmodul
+
+    monkeypatch.setattr(hauptmodul, "OBERFLAECHE", tmp_path)
     antwort = TestClient(app).get("/", follow_redirects=False)
     assert antwort.status_code in (302, 307)
     assert antwort.headers["location"] == "/docs"
+
+
+def test_startseite_liefert_gebaute_oberflaeche(monkeypatch, tmp_path):
+    import app.main as hauptmodul
+
+    (tmp_path / "index.html").write_text('<!doctype html><div id="root"></div>', encoding="utf-8")
+    monkeypatch.setattr(hauptmodul, "OBERFLAECHE", tmp_path)
+    antwort = TestClient(app).get("/")
+    assert antwort.status_code == 200
+    assert '<div id="root">' in antwort.text
+    assert antwort.headers["cache-control"] == "no-cache"
 
 
 @pytest.mark.parametrize("passwort", ["einfach123", "p@ss", "a/b:c", "x#y?z", "e%f", "ä ö+ü"])

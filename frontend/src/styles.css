@@ -1,0 +1,288 @@
+/* Campingverwaltung Aeschi – Bedienoberfläche
+   Farben aus dem Umfeld des Platzes: Tanne, Moos, Thunersee, Harz.
+   Schrift: IBM Plex Sans – ruhig, gut lesbar, klare Ziffern für Daten und Zählungen. */
+
+:root {
+  --tanne: #1e2b22;
+  --tanne-hell: #2c3d31;
+  --moos: #2f5d43;
+  --moos-zart: #e3ede5;
+  --see: #2f6577;
+  --see-zart: #e2edf1;
+  --harz: #9a6417;
+  --harz-zart: #f6ead3;
+  --ziegel: #a3412f;
+  --ziegel-zart: #f6e3de;
+  --nebel: #edf0eb;
+  --papier: #ffffff;
+  --tinte: #1f241f;
+  --tinte-leise: #5c6559;
+  --linie: #d5dbd2;
+  --fokus: #2f6577;
+
+  --radius-klein: 4px;
+  --radius: 8px;
+  --schrift: "IBM Plex Sans", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--schrift);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--tinte);
+  background: var(--nebel);
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3 { line-height: 1.2; margin: 0; }
+h1 { font-size: 1.75rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.25rem; }
+a { color: var(--see); }
+:focus-visible { outline: 3px solid var(--fokus); outline-offset: 2px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+/* ---------- Rahmen und Menü ---------- */
+.rahmen { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+.menue {
+  background: var(--tanne);
+  color: #dfe7df;
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.marke { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-weight: 600; font-size: 1.1rem; padding: 0 8px; }
+.marke svg { width: 28px; height: 28px; fill: #8fb59a; }
+.marke svg .tuer { fill: var(--tanne); }
+.menue ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.menue a:not(.marke) {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: var(--radius-klein);
+  color: inherit; text-decoration: none;
+}
+.menue a:not(.marke):hover { background: var(--tanne-hell); }
+.menue a[aria-current="page"] { background: #fff; color: var(--tanne); font-weight: 600; }
+.einstellungen-link { margin-top: auto; }
+
+.inhalt { padding: 28px 32px 48px; min-width: 0; }
+.seite { display: grid; gap: 20px; max-width: 1440px; }
+.seite.schmal { max-width: 760px; }
+.kopf { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+/* ---------- Knöpfe, Felder, Meldungen ---------- */
+.knopf {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid transparent; border-radius: var(--radius-klein);
+  padding: 8px 14px; cursor: pointer; font-weight: 600; background: none;
+}
+.knopf:disabled { opacity: 0.55; cursor: progress; }
+.knopf.haupt { background: var(--moos); color: #fff; }
+.knopf.haupt:hover:not(:disabled) { background: #264d37; }
+.knopf.neben { background: var(--papier); border-color: var(--linie); }
+.knopf.neben:hover:not(:disabled) { border-color: var(--tinte-leise); }
+.knopf.leise { color: var(--tinte-leise); padding-inline: 8px; }
+.knopf.leise:hover:not(:disabled) { color: var(--ziegel); }
+.knopf.symbol { padding: 6px; background: var(--papier); border-color: var(--linie); }
+
+label { display: grid; gap: 4px; font-size: 0.875rem; color: var(--tinte-leise); }
+label.kompakt { display: inline-flex; align-items: center; gap: 8px; }
+input, select, textarea {
+  border: 1px solid var(--linie); border-radius: var(--radius-klein);
+  padding: 7px 9px; background: var(--papier); font-size: 1rem; color: var(--tinte);
+  min-width: 0;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--see); }
+
+.meldung { margin: 0; padding: 10px 12px; border-radius: var(--radius-klein); border-left: 4px solid; }
+.meldung.fehler { background: var(--ziegel-zart); border-color: var(--ziegel); }
+.meldung.warnung { background: var(--harz-zart); border-color: var(--harz); }
+.meldung.ok { background: var(--moos-zart); border-color: var(--moos); }
+.leer { color: var(--tinte-leise); margin: 0; padding: 16px 4px; }
+.hinweis { color: var(--tinte-leise); margin: 0; max-width: 68ch; }
+
+.marke-status {
+  display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 0.8125rem; font-weight: 600; white-space: nowrap;
+}
+.ton-info { background: var(--see-zart); color: var(--see); }
+.ton-warnung { background: var(--ziegel-zart); color: var(--ziegel); }
+.ton-offen { background: var(--harz-zart); color: var(--harz); }
+.ton-ok { background: var(--moos-zart); color: var(--moos); }
+.ton-aus { background: #e8e9e6; color: var(--tinte-leise); }
+
+/* ---------- Ablagen + Postfach (Reservationen, Gäste) ---------- */
+.ablagen { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--linie); }
+.ablagen button {
+  border: 0; background: none; padding: 8px 12px; cursor: pointer;
+  border-bottom: 3px solid transparent; margin-bottom: -1px; color: var(--tinte-leise);
+}
+.ablagen button[aria-selected="true"] { color: var(--tinte); border-bottom-color: var(--moos); font-weight: 600; }
+.ablagen .zahl { display: inline-block; min-width: 1.6em; padding: 0 5px; margin-left: 4px; border-radius: 99px; background: var(--papier); font-size: 0.8125rem; text-align: center; }
+
+.zweiteilig { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: 20px; align-items: start; }
+.postfach, .detail { background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); }
+.postfach { padding: 12px; display: grid; gap: 8px; max-height: calc(100vh - 220px); overflow: auto; }
+.detail { padding: 24px; min-height: 320px; }
+
+.suchfeld { display: flex; align-items: center; gap: 8px; border: 1px solid var(--linie); border-radius: var(--radius-klein); padding: 0 10px; color: var(--tinte-leise); }
+.suchfeld input { border: 0; flex: 1; padding-inline: 0; }
+.suchfeld input:focus { outline: none; }
+.suchfeld:focus-within { outline: 3px solid var(--fokus); outline-offset: 1px; }
+
+.anfrageliste { list-style: none; margin: 0; padding: 0; display: grid; }
+.anfrage {
+  width: 100%; text-align: left; border: 0; background: none; cursor: pointer;
+  display: grid; gap: 2px; padding: 10px; border-radius: var(--radius-klein);
+  border-bottom: 1px solid var(--nebel);
+}
+.anfrage:hover { background: var(--nebel); }
+.anfrage[aria-current="true"] { background: var(--moos-zart); box-shadow: inset 3px 0 0 var(--moos); }
+.anfrage .zeile1 { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.anfrage .zeile2 { color: var(--tinte-leise); font-size: 0.9375rem; display: flex; flex-wrap: wrap; align-items: center; }
+.anfrage .zeile3 { color: var(--ziegel); font-size: 0.875rem; }
+.trenner { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--linie); margin: 0 8px; }
+
+.karte-detail { display: grid; gap: 18px; }
+.karte-detail > header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.angaben { display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; margin: 0; }
+.angaben dt { color: var(--tinte-leise); }
+.angaben dd { margin: 0; }
+.mehrzeilig { white-space: pre-wrap; }
+.aktionen { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.rohtext summary { cursor: pointer; color: var(--see); font-weight: 600; }
+.rohtext pre {
+  white-space: pre-wrap; font-family: inherit; background: var(--nebel); padding: 14px;
+  border-radius: var(--radius-klein); max-height: 360px; overflow: auto; margin: 8px 0 0;
+}
+
+.formular { display: grid; gap: 16px; }
+.felder { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.felder .breit { grid-column: 1 / -1; }
+label.kontrolle { display: flex; align-items: center; gap: 8px; color: var(--tinte); font-size: 1rem; }
+
+/* ---------- Belegung ---------- */
+.steuerung { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.umschalter { display: inline-flex; border: 1px solid var(--linie); border-radius: var(--radius-klein); overflow: hidden; background: var(--papier); }
+.umschalter button { border: 0; background: none; padding: 7px 12px; cursor: pointer; }
+.umschalter button[aria-pressed="true"] { background: var(--tanne); color: #fff; font-weight: 600; }
+.zeitraumleiste { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.zeitraumleiste h2 { min-width: 13ch; text-align: center; }
+.freier-zeitraum { display: flex; gap: 12px; flex-wrap: wrap; }
+.legende { margin: 0 0 0 auto; display: flex; align-items: center; gap: 6px; color: var(--tinte-leise); font-size: 0.875rem; flex-wrap: wrap; }
+.legende .erklaerung { margin-left: 10px; }
+.probe { display: inline-block; width: 22px; height: 12px; border-radius: 3px; margin-left: 10px; }
+
+.probe.akzeptiert { background: var(--moos); }
+.probe.offen, .zb-balken.offen {
+  background: repeating-linear-gradient(-45deg, var(--harz-zart) 0 6px, #fbf4e6 6px 12px);
+  box-shadow: inset 0 0 0 1.5px var(--harz);
+}
+
+.zeitband-rahmen { display: grid; gap: 12px; }
+.zeitband {
+  --spalte: minmax(30px, 1fr);
+  display: grid;
+  grid-template-columns: 148px repeat(var(--tage), var(--spalte));
+  background: var(--papier);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.zb-ecke { position: sticky; left: 0; background: var(--papier); z-index: 2; }
+.zb-tag {
+  display: grid; justify-items: center; padding: 8px 0 6px; font-size: 0.75rem; color: var(--tinte-leise);
+  border-bottom: 1px solid var(--linie);
+}
+.zb-tag strong { font-size: 0.9375rem; color: var(--tinte); }
+.zb-tag.wochenende { background: #f6f7f4; }
+.zb-tag.heute strong { background: var(--tanne); color: #fff; border-radius: 99px; min-width: 1.7em; text-align: center; }
+
+.zb-gruppe { display: contents; }
+.zb-typ {
+  position: sticky; left: 0; z-index: 2; background: var(--papier);
+  padding: 10px 12px 6px; border-top: 1px solid var(--linie);
+  display: grid; align-content: start;
+}
+.zb-typ strong { font-size: 1.0625rem; }
+.zb-typ span { font-size: 0.8125rem; color: var(--tinte-leise); }
+.zb-summe {
+  border-top: 1px solid var(--linie); padding: 8px 0 4px;
+  display: grid; justify-items: center; align-content: start; font-size: 0.6875rem; color: var(--tinte-leise); line-height: 1.25;
+}
+.zb-summe strong { font-size: 0.875rem; color: var(--tinte); }
+.zb-summe span { display: block; }
+.zb-summe.belegt { background: linear-gradient(var(--moos-zart), transparent 85%); }
+.zb-spur {
+  grid-column: 1 / -1;
+  display: grid; grid-template-columns: subgrid;
+  padding: 2px 0;
+}
+.zb-balken {
+  grid-row: 1;
+  container-type: inline-size;
+  margin: 0 2px; min-height: 28px; padding: 3px 8px;
+  border-radius: 5px; text-decoration: none; color: var(--tinte);
+  display: flex; align-items: center; gap: 8px; overflow: hidden; white-space: nowrap; font-size: 0.8125rem;
+}
+.zb-balken.akzeptiert { background: var(--moos); color: #fff; }
+.zb-balken .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.zb-balken .pers { margin-left: auto; opacity: 0.85; }
+.zb-balken:hover { filter: brightness(0.94); }
+.zb-balken .innen { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+@container (max-width: 96px) { .zb-balken .pers { display: none; } }
+
+.tabellen { display: grid; gap: 20px; }
+.tabelle { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); overflow: hidden; }
+.tabelle caption { text-align: left; font-weight: 600; font-size: 1.0625rem; padding: 0 0 8px; }
+.tabelle caption span { font-weight: 400; color: var(--tinte-leise); margin-left: 10px; font-size: 0.9375rem; }
+.tabelle th, .tabelle td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--nebel); }
+.tabelle th { font-size: 0.8125rem; color: var(--tinte-leise); font-weight: 600; background: #f7f8f5; }
+.tabelle .zahl { text-align: right; }
+.tabelle col.c-gast { width: 30%; }
+.tabelle col.c-datum { width: 13%; }
+.tabelle col.c-zahl { width: 8%; }
+.tabelle col.c-status { width: 20%; }
+.punkt { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+.punkt.akzeptiert { background: var(--moos); }
+.punkt.offen { background: var(--harz-zart); box-shadow: inset 0 0 0 2px var(--harz); }
+
+/* ---------- Einstellungen ---------- */
+.seite section { display: grid; gap: 12px; }
+.schalterliste { list-style: none; margin: 0; padding: 0; background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); }
+.schalterliste li + li { border-top: 1px solid var(--nebel); }
+.schalterliste label { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; cursor: pointer; color: var(--tinte); font-size: 1rem; }
+.schalterliste .text { display: grid; }
+.schalterliste .text span { color: var(--tinte-leise); font-size: 0.9375rem; }
+.schalter {
+  appearance: none; width: 44px; height: 26px; border-radius: 99px; background: #c4cac1; position: relative;
+  cursor: pointer; flex: none; border: 0; padding: 0; transition: background 0.15s;
+}
+.schalter::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  transition: transform 0.15s;
+}
+.schalter:checked { background: var(--moos); }
+.schalter:checked::after { transform: translateX(18px); }
+
+/* ---------- Kleine Bildschirme ---------- */
+@media (max-width: 900px) {
+  .rahmen { grid-template-columns: 1fr; }
+  .menue { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 16px; }
+  .menue ul { display: flex; flex-wrap: wrap; }
+  .einstellungen-link { margin-top: 0; }
+  .inhalt { padding: 20px 16px 40px; }
+  .zweiteilig { grid-template-columns: 1fr; }
+  .postfach { max-height: none; }
+  .felder { grid-template-columns: 1fr; }
+  .legende { margin-left: 0; }
+  .zeitband { grid-template-columns: 110px repeat(var(--tage), minmax(30px, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}

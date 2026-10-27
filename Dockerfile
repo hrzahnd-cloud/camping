@@ -1,4 +1,15 @@
-# Basis-Image explizit auf Debian 13 (trixie) festgelegt, damit klar ist,
+# Stufe 1 (nur Build): Bedienoberfläche mit Node.js bauen.
+# Node.js gelangt NICHT ins laufende Image, nur das gebaute HTML/JS/CSS.
+# Version >= 24.22.1 (Node2Shell, CVE-2026-111497, docs/sicherheit-node2shell.md).
+FROM node:24.22.1-trixie-slim AS oberflaeche
+WORKDIR /oberflaeche
+RUN node -e "const [a,b,c]=process.versions.node.split('.').map(Number); if (a!==24 || b<22 || (b===22 && c<1)) { console.error('Node '+process.version+' ist zu alt'); process.exit(1) }"
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+# Stufe 2 (Laufzeit): Basis-Image explizit auf Debian 13 (trixie) festgelegt, damit klar ist,
 # aus welcher Distribution die CA-Zertifikate stammen. "python:3.12-slim"
 # zeigt derzeit ebenfalls auf trixie, kann aber künftig wechseln.
 # Für reproduzierbare Builds zusätzlich per Digest pinnen:
@@ -58,6 +69,9 @@ COPY scripts/check_node_versions.py /usr/local/bin/check_node_versions.py
 RUN python -I /usr/local/bin/check_node_versions.py /
 
 COPY . .
+
+# Gebaute Oberfläche aus Stufe 1 übernehmen (FastAPI liefert sie unter "/" aus).
+COPY --from=oberflaeche /oberflaeche/dist /app/frontend/dist
 
 # Keine zusätzlichen (veralteten) Zertifikats-Bundles mit dem Quellcode
 # ins Image übernehmen (z.B. aus einer lokalen .venv) - siehe .dockerignore.

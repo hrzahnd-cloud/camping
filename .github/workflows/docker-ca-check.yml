@@ -1,4 +1,4 @@
-name: Docker-Image, CA-Zertifikate und Node.js prüfen
+name: Docker-Image, Oberfläche, CA-Zertifikate und Node.js prüfen
 
 # Baut das Image ohne Cache und mit frischem Base Image und prüft die
 # Vertrauensspeicher (docs/sicherheit-ca-zertifikate.md) sowie die
@@ -53,6 +53,18 @@ jobs:
             dpkg -l | grep -Ei "nodejs|libnode" || echo "kein nodejs/libnode-Paket installiert"
             python -I /usr/local/bin/check_node_versions.py /
           '
+
+      - name: Oberfläche im Image (Startseite und Dateien)
+        run: |
+          docker run -d --name app -e DATABASE_URL=sqlite:////tmp/app.db -p 8000:8000 campingverwaltung:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/metrics >/dev/null && break; sleep 1; done
+          seite=$(curl -fsS http://127.0.0.1:8000/)
+          echo "$seite" | grep -q '<div id="root">'
+          js=$(echo "$seite" | grep -o '/assets/[^"]*\.js' | head -n1)
+          curl -fsS -o /dev/null "http://127.0.0.1:8000$js"
+          curl -fsS http://127.0.0.1:8000/einstellungen/module | grep -q '"reservationen"'
+          docker logs app 2>&1 | tail -n 20
+          docker rm -f app
 
       - name: TLS-Probe (normale Hosts ok, eMudhra-Testhosts abgelehnt)
         run: docker run --rm campingverwaltung:ci python scripts/tls_probe.py

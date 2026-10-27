@@ -18,9 +18,16 @@ def pruefe_vollstaendigkeit(anfrage: Reservationsanfrage) -> tuple[bool, list[st
     return (len(fehlend) == 0, fehlend)
 
 
+PRUEF_STATUS = {"neu", "unvollstaendig", "geprueft_vollstaendig"}
+"""Status, die allein aus der Vollständigkeitsprüfung folgen. Spätere
+Workflow-Status (Antwort gesendet, akzeptiert, ...) setzt eine Person."""
+
+
 def wende_pruefung_an(anfrage: Reservationsanfrage) -> None:
-    """Setzt vollstaendig, fehlende_angaben und status gemäss Prüfergebnis."""
+    """Setzt vollstaendig, fehlende_angaben und – solange die Anfrage noch nicht
+    weiterbearbeitet wurde – den Status gemäss Prüfergebnis."""
     vollstaendig, fehlend = pruefe_vollstaendigkeit(anfrage)
     anfrage.vollstaendig = vollstaendig
     anfrage.fehlende_angaben = ",".join(fehlend) if fehlend else None
-    anfrage.status = "geprueft_vollstaendig" if vollstaendig else "unvollstaendig"
+    if anfrage.status is None or anfrage.status in PRUEF_STATUS:
+        anfrage.status = "geprueft_vollstaendig" if vollstaendig else "unvollstaendig"

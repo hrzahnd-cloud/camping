@@ -1,31 +1,51 @@
-# Campingverwaltung Aeschi – Backend
+# Campingverwaltung Aeschi
 
-Python (FastAPI) + PostgreSQL-Backend, aufgebaut nach dem gemeinsam
+Python (FastAPI) + PostgreSQL-Backend mit Bedienoberfläche (React), aufgebaut nach dem gemeinsam
 erarbeiteten Konzeptdokument (`campingverwaltung-konzept.md`). Dieses
 README ist der Einstiegspunkt für alle, die als Nächstes an diesem
 Code weiterarbeiten – Entwickler:innen ebenso wie die für Hosting,
 Zugriffssteuerung und 2FA zuständigen Fachpersonen.
 
-## ⚠️ Wichtiger Hinweis zum aktuellen Stand
+## Aktueller Stand (Oktober 2026)
 
-Dieser Code wurde in einer **netzwerkisolierten Sandbox** erstellt
-(kein Internetzugriff möglich). Das bedeutet:
+- Läuft auf Atoll (Testumgebung `camping-test.eutima.ch`), PostgreSQL-Datenbank angebunden.
+- Automatisch getestet: `pytest` (Backend, SQLite) und ein CI-Workflow auf GitHub, der das
+  Docker-Image ohne Cache baut und Oberfläche, Zertifikate, Node.js und Tests im Image prüft.
+- **Noch ohne Login:** Zugangsschutz, 2FA sowie Mailkonto (IMAP/SMTP) richtet Eutima ein.
+  Bis dahin keine echten Gästedaten erfassen.
 
-- **Nicht getestet werden konnten:** alles, was FastAPI, SQLAlchemy,
-  Pydantic oder eine echte PostgreSQL-Verbindung braucht (also der
-  grösste Teil der Anwendung) – diese Pakete liessen sich in der
-  Sandbox nicht installieren.
-- **Echt getestet wurden:** die PDF-Rechnungserzeugung (`reportlab`
-  war verfügbar) und die HESTA-Aggregationslogik (reine Python-Logik,
-  ohne Abhängigkeiten) – dabei wurde sogar ein Bug bei
-  monatsübergreifenden Aufenthalten gefunden und behoben.
-- Der gesamte Code wurde sorgfältig manuell auf Konsistenz geprüft
-  (Syntax, Beziehungen zwischen Modellen, Importe), das ersetzt aber
-  keinen echten Lauf gegen eine Datenbank.
+## Bedienoberfläche
 
-**Erster Schritt für euer Team:** die Schritte unter [Setup](#setup)
-durchgehen und den Smoke-Test ausführen (`pytest tests/ -v`), bevor
-mit der fachlichen Weiterentwicklung begonnen wird.
+Die Oberfläche liegt unter `/` (Seiten als `/#/reservationen`, `/#/belegung`, …), die API
+wie bisher daneben (`/docs`). Phase 1 umfasst:
+
+| Bereich | Inhalt |
+|---|---|
+| Reservationen | Posteingang nach Ablagen (zu bearbeiten, warten auf Gast, akzeptiert, abgelehnt/storniert), Anfrage erfassen und ergänzen, Status setzen, Originalnachricht |
+| Belegung | Monat / Woche / freier Zeitraum; Zeitband oder Liste je Stellplatz-Typ (Zelt, Wohnwagen, Camper, Zwärgli, Spycher) mit Erwachsenen (E) und Kindern (K) |
+| Gäste | Suchen, erfassen, bearbeiten |
+| Einstellungen | Module ein-/ausschalten |
+
+Die Zuteilung einzelner Stellplätze erfolgt ausserhalb des Tools; die Belegung zeigt deshalb
+Reservationen je Stellplatz-Typ. Eine akzeptierte Reservation bleibt eine Reservation mit
+Status «akzeptiert» (es entsteht keine Buchung mit Stellplatz).
+
+**Module:** Buchungen, Artikel & Preise, Rechnungen, Auswertungen, HESTA und Feratel sind im
+Backend vollständig vorhanden und in der Datenbank vorgesehen, aber standardmässig
+ausgeschaltet. Unter *Einstellungen* lassen sie sich ohne Deployment einschalten; ihre eigene
+Oberfläche folgt in einer späteren Phase (bis dahin Verweis auf die API).
+
+Entwicklung der Oberfläche (Node.js ≥ 24.22.1, siehe `frontend/.nvmrc`):
+
+```bash
+cd frontend
+npm ci
+npm run dev      # http://localhost:5173, leitet API-Aufrufe an uvicorn auf :8000 weiter
+npm run build    # erzeugt frontend/dist, das FastAPI unter "/" ausliefert
+```
+
+Im Docker-Image wird die Oberfläche in einer eigenen Build-Stufe gebaut; Node.js gelangt
+nicht ins laufende Image.
 
 ## Was ist fertig?
 
@@ -72,8 +92,7 @@ docker run --name camping-db -e POSTGRES_USER=camping_user \
 # 5. Smoke-Test ausführen (SQLite, prüft nur die Modellstruktur)
 pytest tests/ -v
 
-# 6. Datenbankschema erzeugen (erste Migration)
-alembic revision --autogenerate -m "initiales Schema"
+# 6. Datenbankschema erzeugen bzw. aktualisieren
 alembic upgrade head
 
 # 7. Grunddaten einspielen (Preise, MWST-Sätze, Saisons)
@@ -100,8 +119,10 @@ app/
   database.py   DB-Verbindung/Session
   main.py       FastAPI-App, Router-Einbindung
   seed.py       Grunddaten für einen frischen Betrieb
+frontend/       Bedienoberfläche (React + Vite)
 alembic/        Datenbank-Migrationen
-tests/          Smoke-Test
+scripts/        Prüfskripte (CA-Zertifikate, Node.js, TLS)
+tests/          pytest
 ```
 
 ## Bewusst nicht implementiert – und warum
