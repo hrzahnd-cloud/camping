@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
-import { SPRACHEN } from "../format.js";
+import { SPRACHEN, datumVoll } from "../format.js";
 
 const BEREICHE = [
   { code: "vorlagen", name: "Antwortvorlagen" },
   { code: "betrieb", name: "Betriebsangaben" },
+  { code: "mwst", name: "MWST-Sätze" },
   { code: "module", name: "Module" },
 ];
 
@@ -20,6 +21,7 @@ export default function Einstellungen({ module, onGeaendert }) {
       </div>
       {bereich === "vorlagen" && <Vorlagen />}
       {bereich === "betrieb" && <Betrieb />}
+      {bereich === "mwst" && <MwstSaetze />}
       {bereich === "module" && <Module module={module} onGeaendert={onGeaendert} />}
     </div>
   );
@@ -206,5 +208,87 @@ function Module({ module, onGeaendert }) {
       </ul>
       <p className="hinweis">Immer eingeschaltet: {fest.map((m) => m.bezeichnung).join(", ")}.</p>
     </section>
+  );
+}
+
+const prozent = (wert) => `${Number(wert).toLocaleString("de-CH", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} %`;
+
+function MwstSaetze() {
+  const [codes, setCodes] = useState(null);
+  const [meldung, setMeldung] = useState(null);
+  useEffect(() => { api.get("/mwst-saetze").then(setCodes).catch((e) => setMeldung({ art: "fehler", text: e.message })); }, []);
+
+  if (!codes) return meldung ? <p className="meldung fehler">{meldung.text}</p> : <p className="leer">Wird geladen …</p>;
+  return (
+    <section>
+      <p className="hinweis">
+        Ein neuer Satz gilt ab dem gewählten Datum, der bisherige endet am Vortag. Rechnungen verwenden den Satz,
+        der am Leistungsdatum gilt; bereits erstellte Rechnungen bleiben unverändert.
+      </p>
+      {meldung && <p className={`meldung ${meldung.art}`} role="status">{meldung.text}</p>}
+      <div className="mwst-liste">
+        {codes.map((c) => <MwstCode key={c.code} code={c} onGeaendert={(neu, text) => { setCodes(neu); setMeldung(text ? { art: "ok", text } : null); }}
+          onFehler={(text) => setMeldung({ art: "fehler", text })} />)}
+      </div>
+    </section>
+  );
+}
+
+function MwstCode({ code, onGeaendert, onFehler }) {
+  const naechstesJahr = new Date().getFullYear() + 1;
+  const [neu, setNeu] = useState({ satz: "", ab: `${naechstesJahr}-01-01` });
+  const [offen, setOffen] = useState(false);
+  const id = `mwst-${code.code.toLowerCase()}`;
+
+  const hinterlegen = async (e) => {
+    e.preventDefault();
+    try {
+      const liste = await api.post(`/mwst-saetze/${code.code}`, { satz_prozent: neu.satz, gueltig_ab: neu.ab });
+      setOffen(false); setNeu({ satz: "", ab: neu.ab });
+      onGeaendert(liste, `${code.bezeichnung}: ${prozent(neu.satz)} ab ${datumVoll(neu.ab)} hinterlegt.`);
+    } catch (err) { onFehler(err.message); }
+  };
+  const entfernen = async (satz) => {
+    try { onGeaendert(await api.delete(`/mwst-saetze/${satz.id}`), `Satz ab ${datumVoll(satz.gueltig_ab)} entfernt.`); }
+    catch (err) { onFehler(err.message); }
+  };
+
+  return (
+    <article className="mwst-karte" aria-labelledby={`${id}-titel`}>
+      <header>
+        <div>
+          <h2 id={`${id}-titel`}>{code.bezeichnung}</h2>
+          <span className="hinweis">{code.code}</span>
+        </div>
+        <p className="mwst-aktuell">{code.aktueller_satz !== null ? prozent(code.aktueller_satz) : "–"}<span>heute gültig</span></p>
+      </header>
+      <table className="mwst-verlauf">
+        <thead><tr><th scope="col">Satz</th><th scope="col">gültig ab</th><th scope="col">gültig bis</th><th scope="col"><span className="sr-only">Aktion</span></th></tr></thead>
+        <tbody>
+          {code.saetze.map((s, i) => (
+            <tr key={s.id} className={s.aktuell ? "aktuell" : undefined}>
+              <td>{prozent(s.satz_prozent)}</td>
+              <td>{datumVoll(s.gueltig_ab)}</td>
+              <td>{s.gueltig_bis ? datumVoll(s.gueltig_bis) : "offen"}</td>
+              <td>{i === 0 && s.zukuenftig && <button className="knopf leise klein" onClick={() => entfernen(s)}>Entfernen</button>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {offen ? (
+        <form className="mwst-neu" onSubmit={hinterlegen}>
+          <div className="feld"><label htmlFor={`${id}-satz`}>Neuer Satz in %</label>
+            <input id={`${id}-satz`} required type="number" min="0" max="100" step="0.1" inputMode="decimal" value={neu.satz} onChange={(e) => setNeu({ ...neu, satz: e.target.value })} /></div>
+          <div className="feld"><label htmlFor={`${id}-ab`}>gültig ab</label>
+            <input id={`${id}-ab`} required type="date" value={neu.ab} onChange={(e) => setNeu({ ...neu, ab: e.target.value })} /></div>
+          <div className="aktionen">
+            <button className="knopf haupt" type="submit">Satz hinterlegen</button>
+            <button className="knopf leise" type="button" onClick={() => setOffen(false)}>Abbrechen</button>
+          </div>
+        </form>
+      ) : (
+        <div className="aktionen"><button className="knopf neben" onClick={() => setOffen(true)}>Neuen Satz hinterlegen</button></div>
+      )}
+    </article>
   );
 }

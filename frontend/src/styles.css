@@ -390,3 +390,16 @@ a.knopf { text-decoration: none; color: inherit; }
   .woche-tabelle .typ-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .woche-wert span { display: none; }
 }
+
+/* ---------- MWST-Sätze ---------- */
+.mwst-liste { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
+.mwst-karte { background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); box-shadow: var(--schatten); padding: 18px; display: grid; gap: 12px; align-content: start; }
+.mwst-karte header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.mwst-aktuell { margin: 0; white-space: nowrap; font-family: var(--titel); font-weight: 600; font-size: 1.75rem; color: var(--see); text-align: right; line-height: 1; }
+.mwst-aktuell span { display: block; font-family: var(--schrift); font-weight: 400; font-size: 0.75rem; color: var(--tinte-leise); margin-top: 4px; }
+.mwst-verlauf { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+.mwst-verlauf th, .mwst-verlauf td { text-align: left; padding: 6px 4px; border-top: 1px solid var(--nebel); }
+.mwst-verlauf th { border-top: 0; color: var(--tinte-leise); font-size: 0.8125rem; font-weight: 600; }
+.mwst-verlauf tr.aktuell td { font-weight: 600; }
+.mwst-neu { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; align-items: end; }
+.mwst-neu .aktionen { grid-column: 1 / -1; }

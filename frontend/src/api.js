@@ -25,4 +25,5 @@ export const api = {
   post: (pfad, daten) => anfrage("POST", pfad, daten),
   put: (pfad, daten) => anfrage("PUT", pfad, daten),
   patch: (pfad, daten) => anfrage("PATCH", pfad, daten),
+  delete: (pfad) => anfrage("DELETE", pfad),
 };
