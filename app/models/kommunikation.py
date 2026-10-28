@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -18,6 +18,7 @@ class EmailVorlage(Base, IDMixin, TimestampMixin):
     {{betrag}}, {{iban}}, {{zahlungsfrist}}, {{rechnungsnummer}}
     """
     __tablename__ = "email_vorlage"
+    __table_args__ = (UniqueConstraint("typ", "sprache", name="uq_email_vorlage_typ_sprache"),)
 
     typ: Mapped[str] = mapped_column(String(50))
     """erstantwort_zahlungsinfo | rechnung | (später: zahlungserinnerung, absage, ...)"""

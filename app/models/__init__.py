@@ -27,7 +27,7 @@ from app.models.rechnung import (  # noqa: F401
     Rechnung,
     Rechnungsposition,
 )
-from app.models.einstellungen import ModulEinstellung  # noqa: F401
+from app.models.einstellungen import AppEinstellung, ModulEinstellung  # noqa: F401
 from app.models.meldungen import (  # noqa: F401
     FeratelKonfiguration,
     FeratelMeldung,
@@ -64,4 +64,5 @@ __all__ = [
     "HestaMeldung",
     "HestaMeldungPosition",
     "ModulEinstellung",
+    "AppEinstellung",
 ]

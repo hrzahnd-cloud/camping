@@ -153,8 +153,22 @@ def seed() -> None:
         db.close()
 
 
+def vorlagen_ergaenzen() -> None:
+    """Fehlende Startvorlagen für Antwortmails anlegen (bestehende bleiben unverändert)."""
+    from app.services.antwortmail import startvorlagen_ergaenzen
+
+    db = SessionLocal()
+    try:
+        neu = startvorlagen_ergaenzen(db)
+        if neu:
+            print(f"{neu} Startvorlage(n) für Antwortmails angelegt.")
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     if "--falls-leer" in sys.argv[1:]:
         seed_falls_leer()
     else:
         seed()
+    vorlagen_ergaenzen()

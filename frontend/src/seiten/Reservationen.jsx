@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardPaste, Plus, Search } from "lucide-react";
+import { ClipboardPaste, Copy, Mail, Plus, Search } from "lucide-react";
 import { api } from "../api.js";
 import {
   QUELLEN, SPRACHEN, STATUS, TYPEN, datumVoll, fehlendText, naechte, personen, statusName, typName, zeitraum,
@@ -17,7 +17,7 @@ const ABLAGEN = [
 const SCHRITTE = {
   neu: [],
   unvollstaendig: [["abgelehnt", "Ablehnen", "leise"]],
-  geprueft_vollstaendig: [["erstantwort_gesendet", "Antwort ist gesendet", "haupt"], ["abgelehnt", "Ablehnen", "leise"]],
+  geprueft_vollstaendig: [["erstantwort_gesendet", "Schon beantwortet", "neben"], ["abgelehnt", "Ablehnen", "leise"]],
   erstantwort_gesendet: [["zahlung_ausstehend", "Wartet auf Zahlung", "neben"], ["bezahlt_akzeptiert", "Zahlung erhalten, akzeptieren", "haupt"], ["abgelehnt", "Ablehnen", "leise"]],
   zahlung_ausstehend: [["bezahlt_akzeptiert", "Zahlung erhalten, akzeptieren", "haupt"], ["storniert", "Stornieren", "leise"]],
   bezahlt_akzeptiert: [["storniert", "Stornieren", "leise"]],
@@ -137,9 +137,8 @@ function Mailtext({ onGespeichert, onAbbrechen }) {
         Kopieren Sie den Text der Reservationsmail (z.B. vom Homepage-Formular) aus Ihrem Mailprogramm und fügen Sie ihn hier ein.
         Name, Kontakt, Zeitraum, Stellplatz und Personen werden erkannt. Prüfen Sie die Angaben danach und ergänzen Sie, was fehlt.
       </p>
-      <label className="breit">Text der Mail
-        <textarea rows="14" required minLength={10} value={text} onChange={(e) => setText(e.target.value)} />
-      </label>
+      <div className="feld"><label htmlFor="mailtext">Text der Mail</label>
+        <textarea id="mailtext" rows="14" required minLength={10} value={text} onChange={(e) => setText(e.target.value)} /></div>
       {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
       <div className="aktionen">
         <button className="knopf haupt" type="submit" disabled={laeuft || text.trim().length < 10}>Anfrage übernehmen</button>
@@ -149,15 +148,105 @@ function Mailtext({ onGespeichert, onAbbrechen }) {
   );
 }
 
+function Antwort({ anfrage, onGesendet, onAbbrechen }) {
+  const [eingabe, setEingabe] = useState({ sprache: anfrage.sprache || "de", betrag: "", zahlungsfrist: "" });
+  const [entwurf, setEntwurf] = useState(null);
+  const [fehler, setFehler] = useState(null);
+  const [kopiert, setKopiert] = useState(null);
+  const [laeuft, setLaeuft] = useState(false);
+
+  const erstellen = async (e) => {
+    e.preventDefault(); setFehler(null); setLaeuft(true);
+    try {
+      setEntwurf(await api.post(`/reservationsanfragen/${anfrage.id}/antwort/vorbereiten`, {
+        sprache: eingabe.sprache, betrag: eingabe.betrag, zahlungsfrist: eingabe.zahlungsfrist || null,
+      }));
+    } catch (err) { setFehler(err.message); } finally { setLaeuft(false); }
+  };
+
+  const kopieren = async (was, inhalt) => {
+    try { await navigator.clipboard.writeText(inhalt); setKopiert(was); setTimeout(() => setKopiert(null), 2500); }
+    catch { setFehler("Kopieren nicht möglich. Bitte den Text markieren und mit Ctrl+C kopieren."); }
+  };
+
+  const mailto = entwurf
+    ? `mailto:${encodeURIComponent(entwurf.empfaenger)}?subject=${encodeURIComponent(entwurf.betreff)}&body=${encodeURIComponent(entwurf.text)}`
+    : "";
+
+  const gesendet = async () => {
+    setFehler(null); setLaeuft(true);
+    try {
+      onGesendet(await api.post(`/reservationsanfragen/${anfrage.id}/antwort/gesendet`, {
+        vorlage_id: entwurf.vorlage_id, betreff: entwurf.betreff, text: entwurf.text,
+      }));
+    } catch (err) { setFehler(err.message); } finally { setLaeuft(false); }
+  };
+
+  return (
+    <div className="formular">
+      <h2>Antwort an {anfrage.gast_name}</h2>
+      <form className="felder" onSubmit={erstellen}>
+        <label>Sprache
+          <select value={eingabe.sprache} onChange={(e) => setEingabe({ ...eingabe, sprache: e.target.value })}>
+            {Object.entries(SPRACHEN).map(([c, n]) => <option key={c} value={c}>{n}</option>)}
+          </select>
+        </label>
+        <label>Anzahlung in CHF
+          <input required type="number" min="0.05" step="0.05" inputMode="decimal" value={eingabe.betrag}
+            onChange={(e) => setEingabe({ ...eingabe, betrag: e.target.value })} />
+        </label>
+        <label>Zahlungsfrist (optional)
+          <input type="date" value={eingabe.zahlungsfrist} onChange={(e) => setEingabe({ ...eingabe, zahlungsfrist: e.target.value })} />
+        </label>
+        <div className="aktionen breit">
+          <button className="knopf haupt" type="submit" disabled={laeuft}>{entwurf ? "Text neu erstellen" : "Text erstellen"}</button>
+          <button className="knopf leise" type="button" onClick={onAbbrechen}>Abbrechen</button>
+        </div>
+      </form>
+      {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
+
+      {entwurf && (
+        <>
+          {entwurf.warnungen.map((w) => <p key={w} className="meldung warnung">{w}. Unter Einstellungen › Betriebsangaben ergänzen.</p>)}
+          <p className="hinweis">
+            Prüfen und bei Bedarf anpassen. Danach den Text in Ihr Mailprogramm übernehmen, an {entwurf.empfaenger} senden
+            und hier als gesendet markieren.
+          </p>
+          <div className="feld"><label htmlFor="antwort-an">An</label><input id="antwort-an" readOnly value={entwurf.empfaenger} /></div>
+          <div className="feld"><label htmlFor="antwort-betreff">Betreff</label>
+            <input id="antwort-betreff" value={entwurf.betreff} onChange={(e) => setEntwurf({ ...entwurf, betreff: e.target.value })} /></div>
+          <div className="feld"><label htmlFor="antwort-text">Text</label>
+            <textarea id="antwort-text" rows="22" value={entwurf.text} onChange={(e) => setEntwurf({ ...entwurf, text: e.target.value })} /></div>
+          <div className="aktionen">
+            <button className="knopf neben" type="button" onClick={() => kopieren("betreff", entwurf.betreff)}><Copy size={16} aria-hidden="true" />{kopiert === "betreff" ? "Betreff kopiert" : "Betreff kopieren"}</button>
+            <button className="knopf neben" type="button" onClick={() => kopieren("text", entwurf.text)}><Copy size={16} aria-hidden="true" />{kopiert === "text" ? "Text kopiert" : "Text kopieren"}</button>
+            <a className="knopf neben" href={mailto}><Mail size={16} aria-hidden="true" />Im Mailprogramm öffnen</a>
+          </div>
+          <div className="aktionen">
+            <button className="knopf haupt" type="button" disabled={laeuft} onClick={gesendet}>Als gesendet markieren</button>
+          </div>
+          <p className="hinweis">«Als gesendet markieren» speichert den Text im Protokoll der Anfrage und setzt den Status auf «Antwort gesendet».</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Detail({ id, onGeaendert }) {
   const [anfrage, setAnfrage] = useState(null);
   const [bearbeiten, setBearbeiten] = useState(false);
+  const [antworten, setAntworten] = useState(false);
+  const [mails, setMails] = useState([]);
   const [fehler, setFehler] = useState(null);
   const [laeuft, setLaeuft] = useState(false);
 
+  const mailsLaden = useCallback(() => {
+    api.get(`/reservationsanfragen/${id}/mails`).then(setMails).catch(() => {});
+  }, [id]);
   useEffect(() => {
     api.get(`/reservationsanfragen/${id}`).then(setAnfrage).catch((e) => setFehler(e.message));
-  }, [id]);
+    mailsLaden();
+  }, [id, mailsLaden]);
 
   const statusSetzen = async (status) => {
     setLaeuft(true); setFehler(null);
@@ -169,6 +258,15 @@ function Detail({ id, onGeaendert }) {
 
   if (fehler && !anfrage) return <p className="meldung fehler">{fehler}</p>;
   if (!anfrage) return <p className="leer">Wird geladen …</p>;
+  if (antworten) {
+    return (
+      <Antwort
+        anfrage={anfrage}
+        onGesendet={(a) => { setAnfrage(a); setAntworten(false); mailsLaden(); onGeaendert(); }}
+        onAbbrechen={() => setAntworten(false)}
+      />
+    );
+  }
   if (bearbeiten) {
     return (
       <Formular
@@ -203,6 +301,11 @@ function Detail({ id, onGeaendert }) {
       </dl>
 
       <div className="aktionen">
+        {anfrage.vollstaendig && ["geprueft_vollstaendig", "erstantwort_gesendet", "zahlung_ausstehend"].includes(anfrage.status) && (
+          <button className={`knopf ${anfrage.status === "geprueft_vollstaendig" ? "haupt" : "neben"}`} onClick={() => setAntworten(true)}>
+            <Mail size={18} aria-hidden="true" />{mails.length ? "Weitere Antwort vorbereiten" : "Antwort vorbereiten"}
+          </button>
+        )}
         {(SCHRITTE[anfrage.status] || []).map(([status, text, art]) => (
           <button key={status} className={`knopf ${art}`} disabled={laeuft} onClick={() => statusSetzen(status)}>{text}</button>
         ))}
@@ -210,6 +313,17 @@ function Detail({ id, onGeaendert }) {
       </div>
       {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
 
+      {mails.length > 0 && (
+        <details className="rohtext">
+          <summary>Gesendete Antworten ({mails.length})</summary>
+          {mails.map((m) => (
+            <div key={m.id} className="mail">
+              <p className="mail-betreff">{new Date(m.gesendet_am).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" })}: {m.betreff_final}</p>
+              <pre>{m.koerper_final}</pre>
+            </div>
+          ))}
+        </details>
+      )}
       {anfrage.rohtext && (
         <details className="rohtext">
           <summary>Originalnachricht anzeigen</summary>
@@ -283,11 +397,10 @@ function Formular({ anfrage, neu = false, onGespeichert, onAbbrechen }) {
             </select>
           </label>
         )}
-        <label className="breit">Bemerkung<textarea rows="3" value={werte.bemerkung} onChange={setze("bemerkung")} /></label>
+        <div className="feld breit"><label htmlFor="anfrage-bemerkung">Bemerkung</label><textarea id="anfrage-bemerkung" rows="3" value={werte.bemerkung} onChange={setze("bemerkung")} /></div>
         {neu && (
-          <label className="breit">Originalnachricht (optional, z.B. Mailtext einfügen)
-            <textarea rows="5" value={werte.rohtext} onChange={setze("rohtext")} />
-          </label>
+          <div className="feld breit"><label htmlFor="anfrage-rohtext">Originalnachricht (optional, z.B. Mailtext einfügen)</label>
+            <textarea id="anfrage-rohtext" rows="5" value={werte.rohtext} onChange={setze("rohtext")} /></div>
         )}
         <label className="kontrolle breit">
           <input type="checkbox" checked={Boolean(werte.newsletter_einwilligung)} onChange={setze("newsletter_einwilligung")} />

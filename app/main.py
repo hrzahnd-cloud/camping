@@ -30,6 +30,7 @@ from app.routers import (
     hesta,
     rechnungen,
     reservationsanfragen,
+    vorlagen,
 )
 from app.services.mail_import import imap_konfiguriert, importiere_aus_postfach
 
@@ -97,6 +98,7 @@ app.include_router(hesta.router)
 app.include_router(feratel.router)
 app.include_router(belegung.router)
 app.include_router(einstellungen.router)
+app.include_router(vorlagen.router)
 
 
 # Bedienoberfläche (React, gebaut nach frontend/dist, siehe Dockerfile).

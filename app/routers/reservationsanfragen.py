@@ -10,14 +10,17 @@ Erstantwort-Versand (Versand ist laut Konzept immer durch eine Person
 ausgelöst).
 """
 import uuid
+from datetime import date, datetime, timezone
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.database import get_db
+from app.models.kommunikation import EmailVersand, EmailVorlage
 from app.models.reservation import Reservationsanfrage
 from app.schemas.reservation import (
     ReservationsanfrageCreate,
@@ -26,6 +29,7 @@ from app.schemas.reservation import (
     ReservationsanfrageUpdate,
     StatusAenderung,
 )
+from app.services import antwortmail as am
 from app.services.anfrage_pruefung import wende_pruefung_an
 from app.services.mail_import import (
     MailImportNichtKonfiguriert,
@@ -184,3 +188,96 @@ def zahlung_bestaetigen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(anfrage)
     return anfrage
+
+
+# --- Antwort mit Zahlungsinformationen (Konzept 10.2) ------------------------------
+
+class AntwortVorbereiten(BaseModel):
+    sprache: str = Field(pattern="^(de|fr|it|en)$")
+    betrag: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+    zahlungsfrist: date | None = None
+
+
+class AntwortEntwurf(BaseModel):
+    vorlage_id: uuid.UUID
+    sprache: str
+    empfaenger: str
+    betreff: str
+    text: str
+    warnungen: list[str]
+
+
+class AntwortGesendet(BaseModel):
+    vorlage_id: uuid.UUID
+    betreff: str = Field(min_length=1, max_length=300)
+    text: str = Field(min_length=1, max_length=50000)
+
+
+class VersandOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    gesendet_am: datetime
+    empfaenger: str
+    betreff_final: str
+    koerper_final: str
+    status: str
+
+
+def _vollstaendige_anfrage(db: Session, anfrage_id: uuid.UUID) -> Reservationsanfrage:
+    anfrage = db.get(Reservationsanfrage, anfrage_id)
+    if not anfrage:
+        raise HTTPException(404, "Reservationsanfrage nicht gefunden")
+    if not anfrage.vollstaendig:
+        raise HTTPException(400, f"Anfrage ist unvollständig ({anfrage.fehlende_angaben}) – zuerst Angaben ergänzen")
+    return anfrage
+
+
+@router.post("/{anfrage_id}/antwort/vorbereiten", response_model=AntwortEntwurf)
+def antwort_vorbereiten(anfrage_id: uuid.UUID, daten: AntwortVorbereiten, db: Session = Depends(get_db)):
+    """Füllt die Vorlage der gewählten Sprache aus. Es wird noch nichts gespeichert oder verschickt."""
+    anfrage = _vollstaendige_anfrage(db, anfrage_id)
+    am.startvorlagen_ergaenzen(db)
+    vorlage = db.execute(
+        select(EmailVorlage).where(EmailVorlage.typ == am.TYP_ERSTANTWORT, EmailVorlage.sprache == daten.sprache)
+    ).scalar_one()
+    betrieb = am.betriebsangaben(db)
+    werte = am.werte_fuer(anfrage, daten.sprache, daten.betrag, daten.zahlungsfrist, betrieb)
+    betreff, u1 = am.ersetze(vorlage.betreff, werte)
+    text, u2 = am.ersetze(vorlage.koerper, werte)
+    warnungen = am.warnungen_betrieb(betrieb)
+    if u1 or u2:
+        warnungen.append("Unbekannte Platzhalter in der Vorlage: " + ", ".join(sorted(set(u1 + u2))))
+    return AntwortEntwurf(vorlage_id=vorlage.id, sprache=daten.sprache, empfaenger=anfrage.gast_email,
+                          betreff=betreff, text=text, warnungen=warnungen)
+
+
+@router.post("/{anfrage_id}/antwort/gesendet", response_model=ReservationsanfrageDetail)
+def antwort_als_gesendet_markieren(anfrage_id: uuid.UUID, daten: AntwortGesendet, db: Session = Depends(get_db)):
+    """
+    Hält fest, dass die Antwort (aus dem eigenen Mailprogramm) verschickt wurde:
+    der endgültige Text wird protokolliert, der Status wechselt auf
+    "Antwort gesendet". Sobald SMTP eingerichtet ist, verschickt die App selbst.
+    """
+    anfrage = _vollstaendige_anfrage(db, anfrage_id)
+    if not db.get(EmailVorlage, daten.vorlage_id):
+        raise HTTPException(400, "Vorlage nicht gefunden")
+    db.add(EmailVersand(
+        bezug_typ="reservationsanfrage", bezug_id=anfrage.id, vorlage_id=daten.vorlage_id,
+        gesendet_von="Oberfläche (ohne Login)", empfaenger=anfrage.gast_email,
+        betreff_final=daten.betreff, koerper_final=daten.text, status="gesendet",
+        gesendet_am=datetime.now(timezone.utc),
+    ))
+    if anfrage.status in ("neu", "unvollstaendig", "geprueft_vollstaendig"):
+        anfrage.status = "erstantwort_gesendet"
+    db.commit()
+    db.refresh(anfrage)
+    return anfrage
+
+
+@router.get("/{anfrage_id}/mails", response_model=list[VersandOut])
+def mails_zur_anfrage(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
+    return db.execute(
+        select(EmailVersand)
+        .where(EmailVersand.bezug_typ == "reservationsanfrage", EmailVersand.bezug_id == anfrage_id)
+        .order_by(EmailVersand.gesendet_am.desc())
+    ).scalars().all()
