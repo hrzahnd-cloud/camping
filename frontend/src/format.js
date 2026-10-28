@@ -37,7 +37,9 @@ const voll = new Intl.DateTimeFormat("de-CH", { day: "2-digit", month: "2-digit"
 export const ausIso = (iso) => (iso ? new Date(`${iso}T00:00:00`) : null);
 export const datumKurz = (iso) => (iso ? tagMonat.format(ausIso(iso)) : "–");
 export const datumVoll = (iso) => (iso ? voll.format(ausIso(iso)) : "–");
-export const zeitraum = (von, bis) => (von && bis ? `${datumKurz(von)} – ${datumKurz(bis)}` : "Zeitraum fehlt");
+// Jahr nur anzeigen, wenn es nicht das laufende ist (z.B. Anfragen für die nächste Saison)
+const mitJahr = (iso) => (iso && Number(iso.slice(0, 4)) !== new Date().getFullYear() ? ` ${iso.slice(0, 4)}` : "");
+export const zeitraum = (von, bis) => (von && bis ? `${datumKurz(von)} – ${datumKurz(bis)}${mitJahr(bis)}` : "Zeitraum fehlt");
 export const naechte = (von, bis) => (von && bis ? Math.round((ausIso(bis) - ausIso(von)) / 86400000) : null);
 export const personen = (e, k) => `${e ?? 0} E / ${k ?? 0} K`;
 

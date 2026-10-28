@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { ClipboardPaste, Plus, Search } from "lucide-react";
 import { api } from "../api.js";
 import {
   QUELLEN, SPRACHEN, STATUS, TYPEN, datumVoll, fehlendText, naechte, personen, statusName, typName, zeitraum,
@@ -39,7 +39,7 @@ export default function Reservationen() {
   const [anfragen, setAnfragen] = useState(null);
   const [ablage, setAblage] = useState("offen");
   const [suche, setSuche] = useState("");
-  const [auswahl, setAuswahl] = useState(null); // id | "neu" | null
+  const [auswahl, setAuswahl] = useState(null); // id | "neu" | "text" | null
   const [fehler, setFehler] = useState(null);
 
   const laden = useCallback(() => {
@@ -65,7 +65,10 @@ export default function Reservationen() {
     <div className="seite">
       <header className="kopf">
         <h1>Reservationen</h1>
-        <button className="knopf haupt" onClick={() => setAuswahl("neu")}><Plus size={18} aria-hidden="true" />Anfrage erfassen</button>
+        <div className="aktionen">
+          <button className="knopf neben" onClick={() => setAuswahl("text")}><ClipboardPaste size={18} aria-hidden="true" />Mailtext einfügen</button>
+          <button className="knopf haupt" onClick={() => setAuswahl("neu")}><Plus size={18} aria-hidden="true" />Anfrage erfassen</button>
+        </div>
       </header>
       {fehler && <p className="meldung fehler">{fehler}</p>}
 
@@ -105,12 +108,44 @@ export default function Reservationen() {
         </section>
 
         <section className="detail" aria-label="Details">
-          {auswahl === null && <p className="leer">Wählen Sie links eine Anfrage aus.</p>}
+          {auswahl === null && <p className="leer">Wählen Sie eine Anfrage aus der Liste aus.</p>}
           {auswahl === "neu" && <Formular key="neu" anfrage={LEER} neu onGespeichert={nachSpeichern} onAbbrechen={() => setAuswahl(null)} />}
-          {auswahl && auswahl !== "neu" && <Detail key={auswahl} id={auswahl} onGeaendert={laden} />}
+          {auswahl === "text" && <Mailtext onGespeichert={(a) => { setAblage("offen"); nachSpeichern(a); }} onAbbrechen={() => setAuswahl(null)} />}
+          {auswahl && auswahl !== "neu" && auswahl !== "text" && <Detail key={auswahl} id={auswahl} onGeaendert={laden} />}
         </section>
       </div>
     </div>
+  );
+}
+
+function Mailtext({ onGespeichert, onAbbrechen }) {
+  const [text, setText] = useState("");
+  const [fehler, setFehler] = useState(null);
+  const [laeuft, setLaeuft] = useState(false);
+
+  const uebernehmen = async (e) => {
+    e.preventDefault();
+    setLaeuft(true); setFehler(null);
+    try { onGespeichert(await api.post("/reservationsanfragen/mail-import/text", { text })); }
+    catch (err) { setFehler(err.message); } finally { setLaeuft(false); }
+  };
+
+  return (
+    <form className="formular" onSubmit={uebernehmen}>
+      <h2>Mailtext einfügen</h2>
+      <p className="hinweis">
+        Kopieren Sie den Text der Reservationsmail (z.B. vom Homepage-Formular) aus Ihrem Mailprogramm und fügen Sie ihn hier ein.
+        Name, Kontakt, Zeitraum, Stellplatz und Personen werden erkannt. Prüfen Sie die Angaben danach und ergänzen Sie, was fehlt.
+      </p>
+      <label className="breit">Text der Mail
+        <textarea rows="14" required minLength={10} value={text} onChange={(e) => setText(e.target.value)} />
+      </label>
+      {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
+      <div className="aktionen">
+        <button className="knopf haupt" type="submit" disabled={laeuft || text.trim().length < 10}>Anfrage übernehmen</button>
+        <button className="knopf leise" type="button" onClick={onAbbrechen}>Abbrechen</button>
+      </div>
+    </form>
   );
 }
 
