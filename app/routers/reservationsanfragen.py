@@ -12,6 +12,7 @@ ausgelöst).
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -30,6 +31,8 @@ from app.services.mail_import import (
     MailImportNichtKonfiguriert,
     importiere_aus_postfach,
     importiere_mail,
+    parse_mailtext,
+    speichere_anfrage,
 )
 
 router = APIRouter(prefix="/reservationsanfragen", tags=["Reservationsanfragen"])
@@ -48,6 +51,25 @@ def mail_import_ausloesen(db: Session = Depends(get_db), settings: Settings = De
         "neu": ergebnis.neu, "duplikate": ergebnis.duplikate,
         "uebersprungen": ergebnis.uebersprungen, "fehler": ergebnis.fehler,
     }
+
+
+class Mailtext(BaseModel):
+    text: str = Field(min_length=10, max_length=20000)
+
+
+@router.post("/mail-import/text", response_model=ReservationsanfrageDetail, status_code=201, tags=["Mail-Import"])
+def mail_aus_text_importieren(daten: Mailtext, db: Session = Depends(get_db)):
+    """
+    Übernimmt den eingefügten Text einer Reservationsmail (z.B. aus dem
+    Homepage-Formular), solange das Postfach noch nicht angebunden ist.
+    """
+    parsed = parse_mailtext(daten.text)
+    if parsed is None:
+        raise HTTPException(422, "Im Text steht keine E-Mail-Adresse des Gastes")
+    anfrage = speichere_anfrage(db, parsed)
+    if anfrage is None:
+        raise HTTPException(409, "Dieser Mailtext wurde bereits übernommen")
+    return anfrage
 
 
 @router.post("/mail-import/eml", response_model=ReservationsanfrageOut, status_code=201, tags=["Mail-Import"])

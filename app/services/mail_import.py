@@ -197,6 +197,91 @@ def _erkenne_sprache(text: str) -> str:
     return sprache if treffer >= 2 else "de"
 
 
+# --- Homepage-Reservationsformular -------------------------------------------
+# Mails des Formulars auf camping-aeschi.ch haben feste Feldnamen (zweisprachig
+# DE/EN), z.B. "Gewünschtes Anreisedatum: 2027-07-02". Oben steht ein Block ohne
+# Feldnamen: Vorname, Nachname, Strasse, PLZ, Ort, Land, Telefon, E-Mail.
+# Feldnamen dürfen umbrechen ("Number of adults\n(ab 16 Jahre): 3").
+_FORMULAR_KENNUNG = re.compile(r"Gew(?:ü|ue)nschtes\s+Anreisedatum\s*:", re.IGNORECASE)
+_FELD_DATUM = r"\s*:\s*(\d{4}-\d{2}-\d{2}|\d{1,2}\.\s?\d{1,2}\.\s?\d{2,4})"
+_FORMULAR_FELDER = {
+    "anreise": re.compile(r"Anreisedatum" + _FELD_DATUM, re.IGNORECASE),
+    "abreise": re.compile(r"Abreisedatum" + _FELD_DATUM, re.IGNORECASE),
+    "erwachsene": re.compile(r"(?:Number of adults|Anzahl Erwachsene)[^:]{0,40}:\s*(\d{1,2})", re.IGNORECASE),
+    "kinder": re.compile(r"(?:Number of children|Anzahl Kinder)[^:]{0,40}:\s*(\d{1,2})", re.IGNORECASE),
+    "kleinkinder": re.compile(r"(?:Number of infants|Anzahl Kleinkinder)[^:]{0,40}:\s*(\d{1,2})", re.IGNORECASE),
+    "objekt": re.compile(r"^\s*Objekt\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
+    "ausstattung": re.compile(r"^\s*Ausstattung\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
+    "laenge": re.compile(r"^\s*L(?:ä|ae)nge[^:\n]*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
+    "nachricht": re.compile(r"^\s*Nachricht\s*:\s*(.*)\Z", re.IGNORECASE | re.MULTILINE | re.DOTALL),
+}
+_TELEFONZEILE = re.compile(r"^\+?[\d\s/().-]{7,}$")
+
+
+def _formular_datum(wert: str | None) -> date | None:
+    if not wert:
+        return None
+    wert = wert.replace(" ", "")
+    try:
+        if "-" in wert:
+            return date.fromisoformat(wert)
+        tag, monat, jahr = (int(x) for x in wert.split("."))
+        return date(jahr + 2000 if jahr < 100 else jahr, monat, tag)
+    except ValueError:
+        return None
+
+
+def parse_formular(text: str) -> dict | None:
+    """Liest die Felder des Homepage-Formulars; None, wenn der Text kein Formular ist."""
+    if not _FORMULAR_KENNUNG.search(text):
+        return None
+    werte = {k: (m[1].strip() if (m := rx.search(text)) else None) for k, rx in _FORMULAR_FELDER.items()}
+
+    # Kopfblock: alle Zeilen vor dem ersten Feld ("Objekt:" oder "Ausstattung:")
+    kopf_ende = re.search(r"^\s*(?:Objekt|Ausstattung)\s*:", text, re.IGNORECASE | re.MULTILINE)
+    kopf = [z.strip() for z in text[: kopf_ende.start() if kopf_ende else 0].splitlines() if z.strip()]
+    email = next((z for z in kopf if "@" in z and " " not in z), None)
+    telefon = next((z for z in kopf if z is not email and _TELEFONZEILE.match(z)), None)
+    rest = [z for z in kopf if z not in (email, telefon)]
+    name = " ".join(rest[:2]) or None
+    adresse = None
+    if len(rest) >= 6:  # Strasse, PLZ, Ort, Land
+        adresse = f"{rest[2]}, {rest[3]} {rest[4]}, {', '.join(rest[5:])}"
+    elif len(rest) > 2:
+        adresse = ", ".join(rest[2:])
+
+    return {
+        "name": name,
+        "email": email,
+        "telefon": telefon,
+        "adresse": adresse,
+        "von": _formular_datum(werte["anreise"]),
+        "bis": _formular_datum(werte["abreise"]),
+        "erwachsene": int(werte["erwachsene"]) if werte["erwachsene"] else 0,
+        "kinder": int(werte["kinder"]) if werte["kinder"] else 0,
+        "kleinkinder": int(werte["kleinkinder"]) if werte["kleinkinder"] else 0,
+        "stellplatz_typ": _erkenne_stellplatz(werte["objekt"]) if werte["objekt"] else None,
+        "objekt": werte["objekt"],
+        "ausstattung": werte["ausstattung"],
+        "laenge": werte["laenge"],
+        "nachricht": werte["nachricht"] or None,
+    }
+
+
+def _formular_bemerkung(f: dict) -> str | None:
+    """Angaben, für die die Anfrage (noch) kein eigenes Feld hat, gut lesbar zusammengefasst."""
+    zeilen = []
+    if f["kleinkinder"]:
+        zeilen.append(f"Kleinkinder (bis 5 Jahre): {f['kleinkinder']}")
+    for titel, schluessel in (("Objekt", "objekt"), ("Ausstattung", "ausstattung"),
+                              ("Länge Camper/Wohnwagen", "laenge"), ("Adresse", "adresse")):
+        if f[schluessel]:
+            zeilen.append(f"{titel}: {f[schluessel]}")
+    if f["nachricht"]:
+        zeilen.append(f"Nachricht des Gastes:\n{f['nachricht']}")
+    return "\n".join(zeilen) or None
+
+
 def ist_automatische_mail(msg: EmailMessage) -> bool:
     """Bounces, Abwesenheitsnotizen und Newsletter werden nicht importiert."""
     auto = (msg.get("Auto-Submitted") or "").lower()
@@ -233,9 +318,27 @@ def parse_reservationsmail(raw: bytes | EmailMessage, jetzt: datetime | None = N
     text = _body_text(msg)
     volltext = f"{betreff}\n{text}"
 
-    von, bis = _erkenne_daten(volltext, eingang.date())
-    erw, kinder = _erkenne_personen(volltext)
-    telefon = _TELEFON.search(volltext)
+    formular = parse_formular(text)
+    if formular:
+        # Homepage-Formular: feste Felder statt Textsuche
+        von, bis = formular["von"], formular["bis"]
+        erw, kinder = formular["erwachsene"], formular["kinder"]
+        telefon_wert = formular["telefon"]
+        stellplatz = formular["stellplatz_typ"]
+        sprache = _erkenne_sprache(formular["nachricht"] or "") if formular["nachricht"] else "de"
+        bemerkung = _formular_bemerkung(formular)
+        if formular["email"]:
+            adresse = formular["email"]
+        if formular["name"]:
+            name = formular["name"]
+    else:
+        von, bis = _erkenne_daten(volltext, eingang.date())
+        erw, kinder = _erkenne_personen(volltext)
+        treffer = _TELEFON.search(volltext)
+        telefon_wert = treffer[1] if treffer else None
+        stellplatz = _erkenne_stellplatz(volltext)
+        sprache = _erkenne_sprache(volltext)
+        bemerkung = None
 
     message_id = (msg.get("Message-ID") or "").strip() or None
     if message_id is None:
@@ -246,16 +349,41 @@ def parse_reservationsmail(raw: bytes | EmailMessage, jetzt: datetime | None = N
         gast_name=name.strip()[:200],
         gast_email=adresse.strip()[:255],
         eingangs_datum=eingang,
-        sprache=_erkenne_sprache(volltext),
-        gast_telefon=re.sub(r"\s+", " ", telefon[1]).strip()[:50] if telefon else None,
+        sprache=sprache,
+        gast_telefon=re.sub(r"\s+", " ", telefon_wert).strip()[:50] if telefon_wert else None,
         gewuenscht_von=von,
         gewuenscht_bis=bis,
-        stellplatz_typ=_erkenne_stellplatz(volltext),
+        stellplatz_typ=stellplatz,
         anzahl_erwachsene=erw,
         anzahl_kinder=kinder,
+        bemerkung=bemerkung,
         rohtext=f"Betreff: {betreff}\n\n{text}"[:MAX_ROHTEXT],
         mail_message_id=message_id[:255],
     )
+
+
+_EMAIL_IM_TEXT = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+
+
+def parse_mailtext(text: str, jetzt: datetime | None = None) -> ParsedAnfrage | None:
+    """
+    Wie parse_reservationsmail, aber für den reinen Text einer Mail, den jemand
+    aus dem Mailprogramm kopiert und eingefügt hat (ohne Kopfzeilen).
+    Gibt None zurück, wenn im Text keine E-Mail-Adresse des Gastes steht.
+    """
+    text = (text or "").strip()
+    formular = parse_formular(text)
+    email = (formular or {}).get("email") or (m[0] if (m := _EMAIL_IM_TEXT.search(text)) else None)
+    if not email:
+        return None
+    msg = EmailMessage()
+    msg["From"] = email
+    msg["Subject"] = "Eingefügter Mailtext"
+    msg["Date"] = (jetzt or datetime.now(timezone.utc)).strftime("%a, %d %b %Y %H:%M:%S %z")
+    # gleicher Text = gleiche Kennung, damit doppeltes Einfügen erkannt wird
+    msg["Message-ID"] = "text:" + hashlib.sha256(text.encode()).hexdigest()
+    msg.set_content(text)
+    return parse_reservationsmail(msg, jetzt=jetzt)
 
 
 def speichere_anfrage(db: Session, parsed: ParsedAnfrage) -> Reservationsanfrage | None:
@@ -278,6 +406,7 @@ def speichere_anfrage(db: Session, parsed: ParsedAnfrage) -> Reservationsanfrage
         stellplatz_typ=parsed.stellplatz_typ,
         anzahl_erwachsene=parsed.anzahl_erwachsene,
         anzahl_kinder=parsed.anzahl_kinder,
+        bemerkung=parsed.bemerkung,
         rohtext=parsed.rohtext,
         mail_message_id=parsed.mail_message_id,
         newsletter_einwilligung=False,
