@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ClipboardPaste, Copy, Mail, Plus, Search } from "lucide-react";
 import { api } from "../api.js";
+import { TypMarke } from "../typen.jsx";
 import {
-  QUELLEN, SPRACHEN, STATUS, TYPEN, datumVoll, fehlendText, naechte, personen, statusName, typName, zeitraum,
+  QUELLEN, SPRACHEN, STATUS, TYPEN, datumVoll, fehlendText, naechte, personen, personenLang, statusName, zeitraum,
 } from "../format.js";
 
 const ABLAGEN = [
@@ -97,7 +98,7 @@ export default function Reservationen() {
                   <span className="zeile1"><strong>{a.gast_name}</strong><StatusMarke status={a.status} /></span>
                   <span className="zeile2">
                     {zeitraum(a.gewuenscht_von, a.gewuenscht_bis)}
-                    <span className="trenner" aria-hidden="true" />{typName(a.stellplatz_typ)}
+                    <span className="trenner" aria-hidden="true" /><TypMarke code={a.stellplatz_typ} />
                     <span className="trenner" aria-hidden="true" />{personen(a.anzahl_erwachsene, a.anzahl_kinder)}
                   </span>
                   {!a.vollstaendig && <span className="zeile3">Es fehlt: {fehlendText(a.fehlende_angaben)}</span>}
@@ -290,8 +291,8 @@ function Detail({ id, onGeaendert }) {
       <dl className="angaben">
         <dt>Zeitraum</dt>
         <dd>{anfrage.gewuenscht_von ? `${datumVoll(anfrage.gewuenscht_von)} bis ${datumVoll(anfrage.gewuenscht_bis)}` : "fehlt"}{n ? ` (${n} ${n === 1 ? "Nacht" : "Nächte"})` : ""}</dd>
-        <dt>Stellplatz</dt><dd>{typName(anfrage.stellplatz_typ)}</dd>
-        <dt>Personen</dt><dd>{anfrage.anzahl_erwachsene} Erwachsene, {anfrage.anzahl_kinder} Kinder</dd>
+        <dt>Stellplatz</dt><dd><TypMarke code={anfrage.stellplatz_typ} /></dd>
+        <dt>Personen</dt><dd>{personenLang(anfrage.anzahl_erwachsene, anfrage.anzahl_kinder)}</dd>
         <dt>E-Mail</dt><dd><a href={`mailto:${anfrage.gast_email}`}>{anfrage.gast_email}</a></dd>
         <dt>Telefon</dt><dd>{anfrage.gast_telefon || "–"}</dd>
         <dt>Sprache</dt><dd>{SPRACHEN[anfrage.sprache] ?? anfrage.sprache}</dd>
