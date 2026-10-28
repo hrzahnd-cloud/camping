@@ -272,7 +272,7 @@ def _formular_bemerkung(f: dict) -> str | None:
     """Angaben, für die die Anfrage (noch) kein eigenes Feld hat, gut lesbar zusammengefasst."""
     zeilen = []
     if f["kleinkinder"]:
-        zeilen.append(f"Kleinkinder (bis 5 Jahre): {f['kleinkinder']}")
+        zeilen.append(f"Kinder: {f['kinder']} (5 bis 15 Jahre), {f['kleinkinder']} Kleinkinder (bis 5 Jahre)")
     for titel, schluessel in (("Objekt", "objekt"), ("Ausstattung", "ausstattung"),
                               ("Länge Camper/Wohnwagen", "laenge"), ("Adresse", "adresse")):
         if f[schluessel]:
@@ -322,7 +322,9 @@ def parse_reservationsmail(raw: bytes | EmailMessage, jetzt: datetime | None = N
     if formular:
         # Homepage-Formular: feste Felder statt Textsuche
         von, bis = formular["von"], formular["bis"]
-        erw, kinder = formular["erwachsene"], formular["kinder"]
+        # Kleinkinder zählen bei den Kindern (K) mit; die Aufteilung bleibt in der
+        # Bemerkung erhalten (wichtig für Preise: Kleinkinder sind gratis).
+        erw, kinder = formular["erwachsene"], formular["kinder"] + formular["kleinkinder"]
         telefon_wert = formular["telefon"]
         stellplatz = formular["stellplatz_typ"]
         sprache = _erkenne_sprache(formular["nachricht"] or "") if formular["nachricht"] else "de"
