@@ -1,28 +1,37 @@
 /* Campingverwaltung Aeschi – Bedienoberfläche
-   Farben aus dem Umfeld des Platzes: Tanne, Moos, Thunersee, Harz.
-   Schrift: IBM Plex Sans – ruhig, gut lesbar, klare Ziffern für Daten und Zählungen. */
+   «Panorama»: Farben vom Blick über den Thunersee zum Niesen.
+   Tiefsee für das Menü, Seeblau für Aktionen, Tanne für «akzeptiert»,
+   Harz für «offen». Jeder Stellplatz-Typ hat eine eigene Farbe (typen.jsx).
+   Schrift: Barlow Semi Condensed für Überschriften (Anmutung Wegweiser),
+   IBM Plex Sans für Text und Zahlen. */
 
 :root {
-  --tanne: #1e2b22;
-  --tanne-hell: #2c3d31;
-  --moos: #2f5d43;
-  --moos-zart: #e3ede5;
-  --see: #2f6577;
-  --see-zart: #e2edf1;
+  --tiefsee: #143040;
+  --tiefsee-hell: #1f4254;
+  --see: #1f6283;
+  --see-dunkel: #174d68;
+  --see-zart: #e1eef4;
+  --moos: #2f6b4a;
+  --moos-zart: #e2efe6;
   --harz: #9a6417;
-  --harz-zart: #f6ead3;
+  --harz-zart: #f7ebd4;
   --ziegel: #a3412f;
   --ziegel-zart: #f6e3de;
-  --nebel: #edf0eb;
+  --nebel: #eef2f3;
   --papier: #ffffff;
-  --tinte: #1f241f;
-  --tinte-leise: #5c6559;
-  --linie: #d5dbd2;
-  --fokus: #2f6577;
+  --tinte: #1b2428;
+  --tinte-leise: #56646b;
+  --linie: #d6dfe2;
+  --fokus: #1f6283;
+  /* Kompatibilität mit bestehenden Regeln */
+  --tanne: var(--tiefsee);
+  --tanne-hell: var(--tiefsee-hell);
 
-  --radius-klein: 4px;
-  --radius: 8px;
+  --radius-klein: 6px;
+  --radius: 12px;
+  --schatten: 0 1px 2px rgba(20, 48, 64, 0.06), 0 4px 16px rgba(20, 48, 64, 0.05);
   --schrift: "IBM Plex Sans", system-ui, sans-serif;
+  --titel: "Barlow Semi Condensed", "IBM Plex Sans", system-ui, sans-serif;
   color-scheme: light;
 }
 
@@ -36,9 +45,10 @@ body {
   background: var(--nebel);
   font-variant-numeric: tabular-nums;
 }
-h1, h2, h3 { line-height: 1.2; margin: 0; }
-h1 { font-size: 1.75rem; letter-spacing: -0.01em; }
-h2 { font-size: 1.25rem; }
+h1, h2, h3 { line-height: 1.15; margin: 0; font-family: var(--titel); font-weight: 600; }
+h1 { font-size: 2.125rem; letter-spacing: 0.005em; }
+h2 { font-size: 1.375rem; letter-spacing: 0.01em; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 a { color: var(--see); }
 :focus-visible { outline: 3px solid var(--fokus); outline-offset: 2px; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -46,8 +56,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- Rahmen und Menü ---------- */
 .rahmen { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
 .menue {
-  background: var(--tanne);
-  color: #dfe7df;
+  background: var(--tiefsee);
+  color: #d7e5ec;
   padding: 20px 12px;
   display: flex;
   flex-direction: column;
@@ -56,9 +66,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
   top: 0;
   height: 100vh;
 }
-.marke { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-weight: 600; font-size: 1.1rem; padding: 0 8px; }
-.marke svg { width: 28px; height: 28px; fill: #8fb59a; }
-.marke svg .tuer { fill: var(--tanne); }
+.marke { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; padding: 0 8px; }
+.marke span { display: grid; font-family: var(--titel); font-weight: 600; font-size: 1.3rem; line-height: 1.05; }
+.marke small { font-family: var(--schrift); font-weight: 400; font-size: 0.75rem; color: #9fbccb; letter-spacing: 0.02em; }
+.marke svg { width: 30px; height: 30px; fill: #8cc0d6; flex: none; }
+.marke svg .tuer { fill: var(--tiefsee); }
 .menue ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .menue a:not(.marke) {
   display: flex; align-items: center; gap: 10px;
@@ -66,7 +78,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   color: inherit; text-decoration: none;
 }
 .menue a:not(.marke):hover { background: var(--tanne-hell); }
-.menue a[aria-current="page"] { background: #fff; color: var(--tanne); font-weight: 600; }
+.menue a[aria-current="page"] { background: #fff; color: var(--tiefsee); font-weight: 600; box-shadow: inset 3px 0 0 #8cc0d6; }
 .einstellungen-link { margin-top: auto; }
 
 .inhalt { padding: 28px 32px 48px; min-width: 0; }
@@ -81,8 +93,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   padding: 8px 14px; cursor: pointer; font-weight: 600; background: none;
 }
 .knopf:disabled { opacity: 0.55; cursor: progress; }
-.knopf.haupt { background: var(--moos); color: #fff; }
-.knopf.haupt:hover:not(:disabled) { background: #264d37; }
+.knopf.haupt { background: var(--see); color: #fff; }
+.knopf.haupt:hover:not(:disabled) { background: var(--see-dunkel); }
 .knopf.neben { background: var(--papier); border-color: var(--linie); }
 .knopf.neben:hover:not(:disabled) { border-color: var(--tinte-leise); }
 .knopf.leise { color: var(--tinte-leise); padding-inline: 8px; }
@@ -120,11 +132,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--see); }
   border: 0; background: none; padding: 8px 12px; cursor: pointer;
   border-bottom: 3px solid transparent; margin-bottom: -1px; color: var(--tinte-leise);
 }
-.ablagen button[aria-selected="true"] { color: var(--tinte); border-bottom-color: var(--moos); font-weight: 600; }
+.ablagen button[aria-selected="true"] { color: var(--tinte); border-bottom-color: var(--see); font-weight: 600; }
 .ablagen .zahl { display: inline-block; min-width: 1.6em; padding: 0 5px; margin-left: 4px; border-radius: 99px; background: var(--papier); font-size: 0.8125rem; text-align: center; }
 
 .zweiteilig { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: 20px; align-items: start; }
-.postfach, .detail { background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); }
+.postfach, .detail { background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); box-shadow: var(--schatten); }
 .postfach { padding: 12px; display: grid; gap: 8px; max-height: calc(100vh - 220px); overflow: auto; }
 .detail { padding: 24px; min-height: 320px; }
 
@@ -140,7 +152,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--see); }
   border-bottom: 1px solid var(--nebel);
 }
 .anfrage:hover { background: var(--nebel); }
-.anfrage[aria-current="true"] { background: var(--moos-zart); box-shadow: inset 3px 0 0 var(--moos); }
+.anfrage[aria-current="true"] { background: var(--see-zart); box-shadow: inset 3px 0 0 var(--see); }
 .anfrage .zeile1 { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .anfrage .zeile2 { color: var(--tinte-leise); font-size: 0.9375rem; display: flex; flex-wrap: wrap; align-items: center; }
 .anfrage .zeile3 { color: var(--ziegel); font-size: 0.875rem; }
@@ -168,7 +180,7 @@ label.kontrolle { display: flex; align-items: center; gap: 8px; color: var(--tin
 .steuerung { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .umschalter { display: inline-flex; border: 1px solid var(--linie); border-radius: var(--radius-klein); overflow: hidden; background: var(--papier); }
 .umschalter button { border: 0; background: none; padding: 7px 12px; cursor: pointer; }
-.umschalter button[aria-pressed="true"] { background: var(--tanne); color: #fff; font-weight: 600; }
+.umschalter button[aria-pressed="true"] { background: var(--tiefsee); color: #fff; font-weight: 600; }
 .zeitraumleiste { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .zeitraumleiste h2 { min-width: 13ch; text-align: center; }
 .freier-zeitraum { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -176,20 +188,24 @@ label.kontrolle { display: flex; align-items: center; gap: 8px; color: var(--tin
 .legende .erklaerung { margin-left: 10px; }
 .probe { display: inline-block; width: 22px; height: 12px; border-radius: 3px; margin-left: 10px; }
 
-.probe.akzeptiert { background: var(--moos); }
+.probe { --typ: #56646b; }
+.probe.akzeptiert, .zb-balken.akzeptiert { background: var(--typ); color: #fff; }
 .probe.offen, .zb-balken.offen {
-  background: repeating-linear-gradient(-45deg, var(--harz-zart) 0 6px, #fbf4e6 6px 12px);
-  box-shadow: inset 0 0 0 1.5px var(--harz);
+  background: repeating-linear-gradient(-45deg,
+    color-mix(in srgb, var(--typ) 22%, white) 0 6px, color-mix(in srgb, var(--typ) 8%, white) 6px 12px);
+  box-shadow: inset 0 0 0 1.5px var(--typ);
+  color: var(--tinte);
 }
 
 .zeitband-rahmen { display: grid; gap: 12px; }
 .zeitband {
   --spalte: minmax(30px, 1fr);
   display: grid;
-  grid-template-columns: 148px repeat(var(--tage), var(--spalte));
+  grid-template-columns: 160px repeat(var(--tage), var(--spalte));
   background: var(--papier);
   border: 1px solid var(--linie);
   border-radius: var(--radius);
+  box-shadow: var(--schatten);
   overflow-x: auto;
   padding-bottom: 6px;
 }
@@ -200,12 +216,13 @@ label.kontrolle { display: flex; align-items: center; gap: 8px; color: var(--tin
 }
 .zb-tag strong { font-size: 0.9375rem; color: var(--tinte); }
 .zb-tag.wochenende { background: #f6f7f4; }
-.zb-tag.heute strong { background: var(--tanne); color: #fff; border-radius: 99px; min-width: 1.7em; text-align: center; }
+.zb-tag.heute strong { background: var(--see); color: #fff; border-radius: 99px; min-width: 1.7em; text-align: center; }
 
 .zb-gruppe { display: contents; }
 .zb-typ {
   position: sticky; left: 0; z-index: 2; background: var(--papier);
-  padding: 10px 12px 6px; border-top: 1px solid var(--linie);
+  padding: 10px 12px 6px 14px; border-top: 1px solid var(--linie);
+  box-shadow: inset 4px 0 0 var(--typ);
   display: grid; align-content: start;
 }
 .zb-typ strong { font-size: 1.0625rem; }
@@ -216,7 +233,7 @@ label.kontrolle { display: flex; align-items: center; gap: 8px; color: var(--tin
 }
 .zb-summe strong { font-size: 0.875rem; color: var(--tinte); }
 .zb-summe span { display: block; }
-.zb-summe.belegt { background: linear-gradient(var(--moos-zart), transparent 85%); }
+.zb-summe.belegt { background: linear-gradient(color-mix(in srgb, var(--typ) 14%, white), transparent 85%); }
 .zb-spur {
   grid-column: 1 / -1;
   display: grid; grid-template-columns: subgrid;
@@ -229,7 +246,6 @@ label.kontrolle { display: flex; align-items: center; gap: 8px; color: var(--tin
   border-radius: 5px; text-decoration: none; color: var(--tinte);
   display: flex; align-items: center; gap: 8px; overflow: hidden; white-space: nowrap; font-size: 0.8125rem;
 }
-.zb-balken.akzeptiert { background: var(--moos); color: #fff; }
 .zb-balken .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .zb-balken .pers { margin-left: auto; opacity: 0.85; }
 .zb-balken:hover { filter: brightness(0.94); }
@@ -237,9 +253,9 @@ label.kontrolle { display: flex; align-items: center; gap: 8px; color: var(--tin
 @container (max-width: 96px) { .zb-balken .pers { display: none; } }
 
 .tabellen { display: grid; gap: 20px; }
-.tabelle { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); overflow: hidden; }
-.tabelle caption { text-align: left; font-weight: 600; font-size: 1.0625rem; padding: 0 0 8px; }
-.tabelle caption span { font-weight: 400; color: var(--tinte-leise); margin-left: 10px; font-size: 0.9375rem; }
+.tabelle { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); overflow: hidden; box-shadow: var(--schatten); }
+.tabelle caption { text-align: left; font-weight: 600; font-size: 1.0625rem; padding: 0 0 8px; font-family: var(--titel); font-size: 1.25rem; }
+.tabelle caption > span:not(.typ-marke) { font-family: var(--schrift); font-weight: 400; color: var(--tinte-leise); margin-left: 10px; font-size: 0.9375rem; }
 .tabelle th, .tabelle td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--nebel); }
 .tabelle th { font-size: 0.8125rem; color: var(--tinte-leise); font-weight: 600; background: #f7f8f5; }
 .tabelle .zahl { text-align: right; }
@@ -253,7 +269,7 @@ label.kontrolle { display: flex; align-items: center; gap: 8px; color: var(--tin
 
 /* ---------- Einstellungen ---------- */
 .seite section { display: grid; gap: 12px; }
-.schalterliste { list-style: none; margin: 0; padding: 0; background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); }
+.schalterliste { list-style: none; margin: 0; padding: 0; background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); box-shadow: var(--schatten); }
 .schalterliste li + li { border-top: 1px solid var(--nebel); }
 .schalterliste label { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; cursor: pointer; color: var(--tinte); font-size: 1rem; }
 .schalterliste .text { display: grid; }
@@ -266,7 +282,7 @@ label.kontrolle { display: flex; align-items: center; gap: 8px; color: var(--tin
   content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff;
   transition: transform 0.15s;
 }
-.schalter:checked { background: var(--moos); }
+.schalter:checked { background: var(--see); }
 .schalter:checked::after { transform: translateX(18px); }
 
 /* ---------- Kleine Bildschirme ---------- */
@@ -285,4 +301,92 @@ label.kontrolle { display: flex; align-items: center; gap: 8px; color: var(--tin
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+}
+
+/* ---------- Antwortvorlagen und Antwort ---------- */
+.vorlagen { display: grid; gap: 16px; }
+.vorlagen .umschalter { justify-self: start; }
+.vorlagen-raster { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.vorlagen-raster textarea, .formular textarea { line-height: 1.5; }
+.vorschau { background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); box-shadow: var(--schatten); padding: 20px; display: grid; gap: 12px; position: sticky; top: 16px; }
+.mail { border: 1px solid var(--linie); border-radius: var(--radius-klein); background: #fbfcfa; }
+.mail-betreff { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--linie); font-weight: 600; }
+.mail pre { margin: 0; padding: 14px; white-space: pre-wrap; font-family: inherit; font-size: 0.9375rem; max-height: 640px; overflow: auto; }
+.rohtext .mail { margin-top: 10px; }
+.platzhalter summary { cursor: pointer; color: var(--see); font-weight: 600; }
+.platzhalter ul { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; }
+.platzhalter li { display: grid; grid-template-columns: 170px 1fr; gap: 10px; align-items: center; font-size: 0.875rem; color: var(--tinte-leise); }
+.knopf.klein { padding: 3px 8px; font-weight: 400; font-size: 0.8125rem; justify-content: flex-start; }
+.feldhinweis { font-size: 0.8125rem; }
+a.knopf { text-decoration: none; color: inherit; }
+@media (max-width: 1100px) { .vorlagen-raster { grid-template-columns: 1fr; } .vorschau { position: static; } }
+.feld { display: grid; gap: 4px; }
+.feld > label { display: block; }
+.feldhinweis { color: var(--tinte-leise); }
+
+/* ---------- Stellplatz-Typen ---------- */
+.typ-marke { display: inline-flex; align-items: center; gap: 6px; color: var(--typ); font-weight: 600; white-space: nowrap; }
+.typ-marke svg { flex: none; }
+.typ-punkt { width: 10px; height: 10px; border-radius: 50%; background: var(--typ); display: inline-block; }
+.anfrage .zeile2 .typ-marke { font-size: 0.9375rem; }
+
+/* ---------- Heute ---------- */
+.heute-band {
+  position: relative; overflow: hidden; border-radius: var(--radius);
+  background: linear-gradient(180deg, #d9ebf3 0%, #eaf3f6 55%, #f4f8f9 100%);
+  min-height: 210px; display: flex; align-items: flex-start;
+  box-shadow: var(--schatten);
+}
+.heute-panorama { position: absolute; inset: auto 0 0 0; width: 100%; height: 150px; }
+.heute-panorama .p-fern { fill: #b5ccd7; }
+.heute-panorama .p-mitte { fill: #7c9fae; }
+.heute-panorama .p-see { fill: #2f7192; }
+.heute-panorama .p-welle { stroke: #9fc9dc; stroke-width: 2; stroke-linecap: round; fill: none; opacity: 0.7; }
+.heute-text { position: relative; padding: 26px 30px; display: grid; gap: 6px; }
+.heute-text h1 { font-size: 2.5rem; color: var(--tiefsee); }
+.heute-text p { margin: 0; font-size: 1.125rem; color: var(--tiefsee-hell); }
+.heute-text h1, .heute-text p { text-shadow: 0 0 12px #eaf3f6, 0 0 2px #eaf3f6; }
+
+.heute-raster { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.heute-karte {
+  background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius);
+  box-shadow: var(--schatten); padding: 18px 18px 14px; display: grid; gap: 10px; align-content: start;
+}
+.heute-liste { list-style: none; margin: 0; padding: 0; display: grid; }
+.heute-liste a {
+  display: grid; gap: 2px; padding: 9px 8px; color: inherit; text-decoration: none;
+  border-radius: var(--radius-klein); border-top: 1px solid var(--nebel);
+}
+.heute-liste li:first-child a { border-top: 0; }
+.heute-liste a:hover { background: var(--nebel); }
+.heute-liste .zeile1 { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.heute-liste .zeile2 { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--tinte-leise); font-size: 0.9375rem; align-items: center; }
+.heute-liste .alter { color: var(--tinte-leise); font-size: 0.8125rem; }
+
+.woche .kopf h2 { margin-right: auto; }
+.woche-tabelle { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.woche-tabelle th, .woche-tabelle td { padding: 6px 4px; text-align: center; border-top: 1px solid var(--nebel); }
+.woche-tabelle thead th { border-top: 0; font-weight: 400; color: var(--tinte-leise); font-size: 0.8125rem; }
+.woche-tabelle thead th span, .woche-tabelle thead th strong { display: block; }
+.woche-tabelle thead th strong { color: var(--tinte); font-size: 1rem; }
+.woche-tabelle thead th.heute strong { color: var(--see); }
+.woche-tabelle tbody th { text-align: left; width: 150px; }
+.woche-wert {
+  display: grid; justify-items: center; padding: 4px 0; border-radius: var(--radius-klein);
+  background: color-mix(in srgb, var(--typ) calc(10% + var(--anteil) * 30%), white);
+  font-size: 0.75rem; color: var(--tinte-leise); line-height: 1.2;
+}
+.woche-wert strong { font-size: 1rem; color: var(--tinte); }
+.woche-null { color: var(--linie); }
+
+@media (max-width: 1100px) { .heute-raster { grid-template-columns: 1fr 1fr; } .heute-raster > :last-child { grid-column: 1 / -1; } }
+@media (max-width: 700px) {
+  .heute-raster { grid-template-columns: 1fr; }
+  .heute-band { min-height: 230px; }
+  .heute-panorama { height: 90px; }
+  .heute-text { padding: 20px; }
+  .heute-text h1 { font-size: 1.875rem; }
+  .woche-tabelle tbody th { width: 34px; }
+  .woche-tabelle .typ-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .woche-wert span { display: none; }
 }

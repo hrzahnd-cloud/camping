@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "../api.js";
 import { TYPEN, ausIso, datumKurz, isoDatum, personen, plusTage, statusName } from "../format.js";
+import { TypMarke, typStil } from "../typen.jsx";
 
 const WOCHENTAG = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const MONAT = new Intl.DateTimeFormat("de-CH", { month: "long", year: "numeric" });
@@ -92,8 +93,8 @@ export default function Belegung() {
           </>
         )}
         <p className="legende">
-          <span className="probe akzeptiert" aria-hidden="true" />Akzeptiert
-          <span className="probe offen" aria-hidden="true" />Offene Anfrage
+          <span className="probe akzeptiert" aria-hidden="true" />Akzeptiert (volle Fläche)
+          <span className="probe offen" aria-hidden="true" />Offene Anfrage (schraffiert)
           <span className="erklaerung">E = Erwachsene, K = Kinder</span>
         </p>
       </div>
@@ -139,9 +140,9 @@ function Zeitband({ daten, heute }) {
         })}
 
         {proTyp.map((t) => (
-          <div key={t.code} className="zb-gruppe" role="rowgroup" aria-label={t.name}>
+          <div key={t.code} className="zb-gruppe" role="rowgroup" aria-label={t.name} style={{ "--typ": typStil(t.code).farbe }}>
             <div className="zb-typ">
-              <strong>{t.name}</strong>
+              <strong><TypMarke code={t.code} groesse={18} /></strong>
               <span>{t.uebersicht?.anzahl_reservationen || "keine"} {t.uebersicht?.anzahl_reservationen === 1 ? "Reservation" : "Reservationen"}</span>
             </div>
             {t.uebersicht?.tage.map((s) => (
@@ -185,7 +186,7 @@ function Liste({ daten }) {
         const summe = g.eintraege.reduce((s, e) => [s[0] + e.erwachsene, s[1] + e.kinder], [0, 0]);
         return (
           <table key={g.code ?? "ohne"} className="tabelle">
-            <caption>{g.name} <span>{g.eintraege.length} {g.eintraege.length === 1 ? "Reservation" : "Reservationen"}, {personen(summe[0], summe[1])}</span></caption>
+            <caption style={{ "--typ": typStil(g.code).farbe }}>{g.code ? <TypMarke code={g.code} groesse={18} /> : g.name} <span>{g.eintraege.length} {g.eintraege.length === 1 ? "Reservation" : "Reservationen"}, {personen(summe[0], summe[1])}</span></caption>
             <colgroup><col className="c-gast" /><col className="c-datum" /><col className="c-datum" /><col className="c-zahl" /><col className="c-zahl" /><col className="c-zahl" /><col className="c-status" /></colgroup>
             <thead><tr><th>Gast</th><th>Anreise</th><th>Abreise</th><th className="zahl">Nächte</th><th className="zahl">E</th><th className="zahl">K</th><th>Status</th></tr></thead>
             <tbody>

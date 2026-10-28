@@ -6,6 +6,7 @@ export const TYPEN = [
   { code: "spycher", name: "Spycher" },
 ];
 export const typName = (code) => TYPEN.find((t) => t.code === code)?.name ?? "ohne Typ";
+export const heuteIso = () => isoDatum(new Date());
 
 export const STATUS = {
   neu: { name: "Neu", ton: "info" },
@@ -48,3 +49,7 @@ export const isoDatum = (d) => {
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 };
 export const plusTage = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+
+// "2 Erwachsene, 1 Kind" – ausgeschrieben, mit Einzahl/Mehrzahl
+export const personenLang = (e, k) =>
+  `${e ?? 0} ${e === 1 ? "Erwachsene/r" : "Erwachsene"}, ${k ?? 0} ${k === 1 ? "Kind" : "Kinder"}`;

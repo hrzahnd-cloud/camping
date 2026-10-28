@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  BarChart3, BedDouble, CalendarRange, FileText, Inbox, Map, Package, Send, Settings, Users,
+  BarChart3, BedDouble, CalendarRange, FileText, Inbox, Map, Package, Send, Settings, Sun, Users,
 } from "lucide-react";
 import { api } from "./api.js";
+import Heute from "./seiten/Heute.jsx";
 import Reservationen from "./seiten/Reservationen.jsx";
 import Belegung from "./seiten/Belegung.jsx";
 import Gaeste from "./seiten/Gaeste.jsx";
@@ -12,6 +13,7 @@ import Modulseite from "./seiten/Modulseite.jsx";
 // Reihenfolge = Reihenfolge im Menü. Module, die unter Einstellungen
 // ausgeschaltet sind, erscheinen nicht.
 const SEITEN = [
+  { code: "heute", pfad: "heute", name: "Heute", icon: Sun, Komponente: Heute },
   { code: "reservationen", pfad: "reservationen", name: "Reservationen", icon: Inbox, Komponente: Reservationen },
   { code: "belegung", pfad: "belegung", name: "Belegung", icon: CalendarRange, Komponente: Belegung },
   { code: "gaeste", pfad: "gaeste", name: "Gäste", icon: Users, Komponente: Gaeste },
@@ -23,7 +25,7 @@ const SEITEN = [
   { code: "feratel", pfad: "feratel", name: "Feratel", icon: Map },
 ];
 
-const aktuellerPfad = () => window.location.hash.replace(/^#\/?/, "").split("?")[0] || "reservationen";
+const aktuellerPfad = () => window.location.hash.replace(/^#\/?/, "").split("?")[0] || "heute";
 
 export default function App() {
   const [pfad, setPfad] = useState(aktuellerPfad());
@@ -41,7 +43,8 @@ export default function App() {
   }, []);
   useEffect(moduleLaden, [moduleLaden]);
 
-  const aktiv = (code) => module?.find((m) => m.code === code)?.aktiv;
+  // "Heute" ist eine reine Übersicht der Oberfläche und immer eingeschaltet
+  const aktiv = (code) => code === "heute" || module?.find((m) => m.code === code)?.aktiv;
   const sichtbar = SEITEN.filter((s) => aktiv(s.code));
   const seite = pfad === "einstellungen" ? null : SEITEN.find((s) => s.pfad === pfad);
   const modulInfo = module?.find((m) => m.code === seite?.code);
@@ -50,7 +53,7 @@ export default function App() {
   if (fehler) inhalt = <p className="meldung fehler">Die Anwendung ist nicht erreichbar: {fehler}</p>;
   else if (!module) inhalt = <p className="leer">Wird geladen …</p>;
   else if (pfad === "einstellungen") inhalt = <Einstellungen module={module} onGeaendert={setModule} />;
-  else if (!seite) inhalt = <p className="leer">Diese Seite gibt es nicht. <a href="#/reservationen">Zu den Reservationen</a></p>;
+  else if (!seite) inhalt = <p className="leer">Diese Seite gibt es nicht. <a href="#/heute">Zur Übersicht «Heute»</a></p>;
   else if (!aktiv(seite.code)) {
     inhalt = (
       <p className="leer">
@@ -63,9 +66,9 @@ export default function App() {
   return (
     <div className="rahmen">
       <nav className="menue" aria-label="Hauptmenü">
-        <a className="marke" href="#/reservationen">
+        <a className="marke" href="#/heute">
           <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 3 28h26z" /><path className="tuer" d="M16 14l-5 14h10z" /></svg>
-          <span>Camping Aeschi</span>
+          <span>Camping Aeschi<small>Verwaltung</small></span>
         </a>
         <ul>
           {sichtbar.map(({ pfad: p, name, icon: Icon }) => (

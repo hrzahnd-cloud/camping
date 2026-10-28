@@ -24,7 +24,13 @@ wie bisher daneben (`/docs`). Phase 1 umfasst:
 | Reservationen | Posteingang nach Ablagen (zu bearbeiten, warten auf Gast, akzeptiert, abgelehnt/storniert), Anfrage erfassen und ergänzen, Status setzen, Originalnachricht |
 | Belegung | Monat / Woche / freier Zeitraum; Zeitband oder Liste je Stellplatz-Typ (Zelt, Wohnwagen, Camper, Zwärgli, Spycher) mit Erwachsenen (E) und Kindern (K) |
 | Gäste | Suchen, erfassen, bearbeiten |
-| Einstellungen | Module ein-/ausschalten |
+| Einstellungen | Antwortvorlagen (DE/FR/IT/EN) mit Vorschau, Betriebsangaben (Signatur, Infoblock, IBAN/BIC, TWINT), Module ein-/ausschalten |
+
+**Antwortmails:** In einer vollständigen Reservation erstellt «Antwort vorbereiten» den Text aus
+der Vorlage in der Sprache des Gastes. Die Anzahlung wird von Hand eingegeben, eine Zahlungsfrist
+ist optional. Der Text lässt sich anpassen, kopieren bzw. im Mailprogramm öffnen; «Als gesendet
+markieren» protokolliert ihn und setzt den Status. Sobald SMTP eingerichtet ist, kann die App
+selbst versenden. Signatur, IBAN usw. liegen in der Datenbank, nicht im (öffentlichen) Code.
 
 Die Zuteilung einzelner Stellplätze erfolgt ausserhalb des Tools; die Belegung zeigt deshalb
 Reservationen je Stellplatz-Typ. Eine akzeptierte Reservation bleibt eine Reservation mit

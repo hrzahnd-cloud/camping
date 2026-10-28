@@ -8,7 +8,7 @@ app/services/module.py.
 """
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -20,6 +20,21 @@ class ModulEinstellung(Base):
 
     code: Mapped[str] = mapped_column(String(50), primary_key=True)
     aktiv: Mapped[bool] = mapped_column(Boolean, default=False)
+    geaendert_am: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class AppEinstellung(Base):
+    """
+    Einzelne Einstellung als Schlüssel/Wert, z.B. Signatur, IBAN, TWINT.
+    Werte werden in der Oberfläche unter "Einstellungen" gepflegt und nicht im
+    Code abgelegt (das Repository ist öffentlich).
+    """
+    __tablename__ = "app_einstellung"
+
+    schluessel: Mapped[str] = mapped_column(String(60), primary_key=True)
+    wert: Mapped[str] = mapped_column(Text, default="")
     geaendert_am: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
