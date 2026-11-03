@@ -28,6 +28,8 @@ from app.routers import (
     feratel,
     gaeste,
     hesta,
+    mwst,
+    postfach,
     rechnungen,
     reservationsanfragen,
     vorlagen,
@@ -99,6 +101,8 @@ app.include_router(feratel.router)
 app.include_router(belegung.router)
 app.include_router(einstellungen.router)
 app.include_router(vorlagen.router)
+app.include_router(mwst.router)
+app.include_router(postfach.router)
 
 
 # Bedienoberfläche (React, gebaut nach frontend/dist, siehe Dockerfile).

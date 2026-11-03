@@ -22,7 +22,7 @@ from app.models.artikel import Artikel, ArtikelPreis, Saison
 from app.models.buchung import Buchung
 from app.models.rechnung import Rechnung, Rechnungsposition
 from app.schemas.rechnung import RechnungOut, RechnungspositionCreate
-from app.services.mwst import mwst_betrag_aus_brutto
+from app.services.mwst import mwst_betrag_aus_brutto, prozent_fuer_artikel
 from app.services.pdf_rechnung import (
     RechnungsDaten,
     RechnungsPositionZeile,
@@ -61,7 +61,11 @@ def _ermittle_preis_und_mwst(db: Session, artikel: Artikel, stichtag: date) -> t
     if preis_row is None:
         raise HTTPException(400, f"Kein Preis für Artikel '{artikel.bezeichnung}' am {stichtag} hinterlegt")
 
-    return Decimal(str(preis_row.preis)), Decimal(str(artikel.mwstsatz.satz_prozent))
+    try:
+        prozent = prozent_fuer_artikel(db, artikel, stichtag)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return Decimal(str(preis_row.preis)), prozent
 
 
 @router.get("/taxen-vorschau")

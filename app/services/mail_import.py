@@ -93,6 +93,11 @@ class ParsedAnfrage:
 @dataclass
 class ImportErgebnis:
     neu: int = 0
+    nachtraege: int = 0
+    """Antworten von Gästen auf bestehende Anfragen"""
+    antworten: int = 0
+    """eigene Antworten (BCC/umgeleitet), einer Anfrage zugeordnet"""
+    nicht_zugeordnet: int = 0
     duplikate: int = 0
     uebersprungen: int = 0
     fehler: list[str] = field(default_factory=list)
@@ -398,7 +403,7 @@ def speichere_anfrage(db: Session, parsed: ParsedAnfrage) -> Reservationsanfrage
 
     anfrage = Reservationsanfrage(
         quelle="email",
-        eingangs_datum=parsed.eingangs_datum,
+        eingangs_datum=parsed.eingangs_datum.astimezone(timezone.utc),
         sprache=parsed.sprache,
         gast_name=parsed.gast_name,
         gast_email=parsed.gast_email,
@@ -420,13 +425,18 @@ def speichere_anfrage(db: Session, parsed: ParsedAnfrage) -> Reservationsanfrage
     return anfrage
 
 
-def importiere_mail(db: Session, raw: bytes | EmailMessage) -> tuple[Reservationsanfrage | None, str]:
-    """Parst und speichert eine Mail. Status: 'neu' | 'duplikat' | 'uebersprungen'."""
-    parsed = parse_reservationsmail(raw)
-    if parsed is None:
-        return None, "uebersprungen"
-    anfrage = speichere_anfrage(db, parsed)
-    return (anfrage, "neu") if anfrage else (None, "duplikat")
+def importiere_mail(db: Session, raw: bytes | EmailMessage, settings: Settings | None = None) -> tuple[Reservationsanfrage | None, str]:
+    """
+    Ordnet eine Mail ein (neue Anfrage, Antwort des Gastes, eigene Antwort; auch
+    weitergeleitet) und speichert sie – siehe app/services/mailverlauf.py.
+    Rückgabe: (Anfrage, Art) mit Art neu | nachtrag | antwort | nicht_zugeordnet |
+    duplikat | uebersprungen.
+    """
+    from app.config import get_settings
+    from app.services.mailverlauf import verarbeite_mail
+
+    art, anfrage = verarbeite_mail(db, raw, settings or get_settings())
+    return anfrage, art
 
 
 def imap_konfiguriert(settings: Settings) -> bool:
@@ -462,13 +472,10 @@ def importiere_aus_postfach(db: Session, settings: Settings, max_mails: int = 50
                 if status != "OK" or not teile or not isinstance(teile[0], tuple):
                     ergebnis.fehler.append(f"Mail {nummer.decode()}: Abruf fehlgeschlagen")
                     continue
-                _, art = importiere_mail(db, teile[0][1])
-                if art == "neu":
-                    ergebnis.neu += 1
-                elif art == "duplikat":
-                    ergebnis.duplikate += 1
-                else:
-                    ergebnis.uebersprungen += 1
+                _, art = importiere_mail(db, teile[0][1], settings)
+                feld = {"neu": "neu", "nachtrag": "nachtraege", "antwort": "antworten",
+                        "nicht_zugeordnet": "nicht_zugeordnet", "duplikat": "duplikate"}.get(art, "uebersprungen")
+                setattr(ergebnis, feld, getattr(ergebnis, feld) + 1)
                 verbindung.store(nummer, "+FLAGS", "\\Seen")
             except Exception as exc:  # eine defekte Mail darf den Rest nicht blockieren
                 db.rollback()
@@ -479,4 +486,17 @@ def importiere_aus_postfach(db: Session, settings: Settings, max_mails: int = 50
             verbindung.logout()
         except Exception:
             pass
+        _protokoll(db, ergebnis)
     return ergebnis
+
+
+def _protokoll(db: Session, ergebnis: ImportErgebnis) -> None:
+    from dataclasses import asdict
+
+    from app.services.mailverlauf import abruf_protokollieren
+
+    try:
+        abruf_protokollieren(db, asdict(ergebnis))
+    except Exception:
+        db.rollback()
+        log.exception("Mail-Import: Protokoll konnte nicht gespeichert werden")

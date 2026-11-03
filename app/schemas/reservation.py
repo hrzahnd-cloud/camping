@@ -74,6 +74,8 @@ class ReservationsanfrageOut(BaseModel):
     fehlende_angaben: str | None
     status: str
     newsletter_einwilligung: bool
+    neue_mails: int = 0
+    """Ungelesene Mails des Gastes zu dieser Anfrage (aus dem Postfach)."""
 
 
 class ReservationsanfrageDetail(ReservationsanfrageOut):

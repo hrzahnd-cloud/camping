@@ -112,8 +112,9 @@ def test_als_gesendet_markieren_protokolliert_und_setzt_status(client):
                     json={"vorlage_id": e["vorlage_id"], "betreff": e["betreff"], "text": angepasst})
     assert r.status_code == 200 and r.json()["status"] == "erstantwort_gesendet"
     mails = client.get(f"/reservationsanfragen/{a['id']}/mails").json()
-    assert len(mails) == 1 and mails[0]["koerper_final"].startswith("Dear Mia,")
-    assert mails[0]["empfaenger"] == "mia@example.com"
+    assert len(mails) == 1 and mails[0]["text"].startswith("Dear Mia,")
+    assert mails[0]["an"] == "mia@example.com"
+    assert (mails[0]["richtung"], mails[0]["quelle"]) == ("ausgang", "tool")
 
 
 def test_datum_und_betrag_formatierung():

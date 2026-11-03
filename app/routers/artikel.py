@@ -7,8 +7,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
+from app.services.mwst import prozent_fuer_artikel
 from app.models.artikel import Artikel, ArtikelPreis, Saison
 from app.schemas.artikel import ArtikelOut
+
+def _prozent(db: Session, artikel: Artikel, stichtag: date):
+    try:
+        return prozent_fuer_artikel(db, artikel, stichtag)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+
 
 router = APIRouter(prefix="/artikel", tags=["Artikel & Preise"])
 
@@ -62,5 +70,5 @@ def preis_ermitteln(artikel_id: uuid.UUID, stichtag: date, db: Session = Depends
         "stichtag": stichtag.isoformat(),
         "saison": saison.bezeichnung if saison else None,
         "preis": float(preis.preis),
-        "mwstsatz_prozent": float(artikel.mwstsatz.satz_prozent),
+        "mwstsatz_prozent": float(_prozent(db, artikel, stichtag)),
     }

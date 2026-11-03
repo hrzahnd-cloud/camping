@@ -24,7 +24,14 @@ wie bisher daneben (`/docs`). Phase 1 umfasst:
 | Reservationen | Posteingang nach Ablagen (zu bearbeiten, warten auf Gast, akzeptiert, abgelehnt/storniert), Anfrage erfassen und ergänzen, Status setzen, Originalnachricht |
 | Belegung | Monat / Woche / freier Zeitraum; Zeitband oder Liste je Stellplatz-Typ (Zelt, Wohnwagen, Camper, Zwärgli, Spycher) mit Erwachsenen (E) und Kindern (K) |
 | Gäste | Suchen, erfassen, bearbeiten |
-| Einstellungen | Antwortvorlagen (DE/FR/IT/EN) mit Vorschau, Betriebsangaben (Signatur, Infoblock, IBAN/BIC, TWINT), Module ein-/ausschalten |
+| Einstellungen | Antwortvorlagen (DE/FR/IT/EN) mit Vorschau, Betriebsangaben (Signatur, Infoblock, IBAN/BIC, TWINT), MWST-Sätze je Gültigkeit, Postfach (Abrufstand, nicht zugeordnete Mails), Module ein-/ausschalten |
+
+**Mails aus dem Mailkonto des Campings:** Reservationsmails und Antworten werden per «Umleiten»
+(empfohlen) oder «Weiterleiten» in ein eigenes Tool-Postfach geschickt, das die App per IMAP
+abruft (`IMAP_*`). Weitergeleitete Mails werden ausgepackt (Gmail, Outlook, Apple Mail,
+Thunderbird, auch als Anhang). Mails von eigenen Adressen (`MAIL_EIGENE_ADRESSEN`, z.B. per BCC)
+gelten als Antwort und werden der Anfrage zugeordnet; Antworten von Gästen («Re:/AW:» oder
+Mail-Verweise) ebenfalls und erscheinen als «Neue Mail». Details: `app/services/mailverlauf.py`.
 
 **Antwortmails:** In einer vollständigen Reservation erstellt «Antwort vorbereiten» den Text aus
 der Vorlage in der Sprache des Gastes. Die Anzahlung wird von Hand eingegeben, eine Zahlungsfrist

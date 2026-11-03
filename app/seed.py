@@ -2,9 +2,9 @@
 Grunddaten für einen frischen Betrieb.
 
 Preise gemäss camping-aeschi.ch/preise-2 (Stand 2026, siehe Konzeptdokument
-Abschnitt 9.3). MWST-Satz Beherbergung: aktuell (2024-2027) 3.8% – der im
-Gespräch genannte Satz von 3.6% war 2018-2023 gültig; VOR dem produktiven
-Einsatz mit Treuhänder/ESTV verifizieren (Konzeptdokument Abschnitt 9.1).
+Abschnitt 9.3). MWST-Satz Beherbergung 3.8% (seit 1.1.2024; im Oktober 2026
+vom Betrieb bestätigt). Neue Sätze werden in der Oberfläche unter
+Einstellungen > MWST-Sätze ab einem Datum hinterlegt.
 
 Ausführen mit:  python -m app.seed
 Beim Container-Start:  python -m app.seed --falls-leer

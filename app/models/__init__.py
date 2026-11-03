@@ -15,7 +15,7 @@ from app.models.reservation import (  # noqa: F401
     Zahlung,
     Zahlungsanbieterkonfiguration,
 )
-from app.models.kommunikation import EmailVorlage, EmailVersand  # noqa: F401
+from app.models.kommunikation import EmailVorlage, EmailVersand, MailNachricht  # noqa: F401
 from app.models.newsletter import (  # noqa: F401
     MailchimpKonfiguration,
     NewsletterAbo,
@@ -52,6 +52,7 @@ __all__ = [
     "Zahlungsanbieterkonfiguration",
     "EmailVorlage",
     "EmailVersand",
+    "MailNachricht",
     "MailchimpKonfiguration",
     "NewsletterAbo",
     "NewsletterKampagne",

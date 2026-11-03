@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     imap_user: str | None = None
     imap_password: str | None = None
     imap_ordner: str = "INBOX"
+    mail_eigene_adressen: str = "info@camping-aeschi.ch"
+    """Kommagetrennt: Absender, deren Mails als eigene Antworten gelten (nicht als neue Anfrage)."""
     mail_import_intervall_sekunden: int = 300
     """Abstand der automatischen Abfrage; 0 = nur manuell per Endpoint."""
 
