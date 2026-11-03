@@ -55,3 +55,34 @@ class EmailVersand(Base, IDMixin, TimestampMixin):
     gesendet_am: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     vorlage: Mapped["EmailVorlage"] = relationship()
+
+
+class MailNachricht(Base, IDMixin, TimestampMixin):
+    """
+    Mailverlauf einer Reservationsanfrage aus dem Postfach: eingehende Mails
+    (Anfrage, Rückfragen des Gastes) und ausgehende Antworten, die ausserhalb
+    des Tools geschrieben und per BCC/Umleiten ins Tool-Postfach gelangt sind.
+    Antworten, die im Tool vorbereitet wurden, stehen in `email_versand`.
+    """
+    __tablename__ = "mail_nachricht"
+
+    reservationsanfrage_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("reservationsanfrage.id"), index=True
+    )
+    """NULL = konnte keiner Anfrage zugeordnet werden (in den Einstellungen sichtbar)."""
+    richtung: Mapped[str] = mapped_column(String(10))
+    """eingang | ausgang"""
+    message_id: Mapped[str] = mapped_column(String(255), unique=True)
+    """Message-ID der (ursprünglichen) Mail oder eine Prüfsumme, verhindert Doppelimporte."""
+    in_reply_to: Mapped[str | None] = mapped_column(String(255))
+    verweise: Mapped[str | None] = mapped_column(Text)
+    """Inhalt des References-Headers (Leerzeichen-getrennt)."""
+    von: Mapped[str] = mapped_column(String(255))
+    an: Mapped[str | None] = mapped_column(String(500))
+    betreff: Mapped[str] = mapped_column(String(300), default="")
+    text: Mapped[str] = mapped_column(Text, default="")
+    datum: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    weitergeleitet: Mapped[bool] = mapped_column(Boolean, default=False)
+    """True, wenn die Mail weitergeleitet ankam und ausgepackt wurde."""
+    gelesen: Mapped[bool] = mapped_column(Boolean, default=True)
+    """False bei neuen Mails des Gastes, bis jemand die Anfrage öffnet."""

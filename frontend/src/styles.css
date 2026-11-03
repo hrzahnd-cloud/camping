@@ -403,3 +403,22 @@ a.knopf { text-decoration: none; color: inherit; }
 .mwst-verlauf tr.aktuell td { font-weight: 600; }
 .mwst-neu { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; align-items: end; }
 .mwst-neu .aktionen { grid-column: 1 / -1; }
+
+/* ---------- Mailverlauf und Postfach ---------- */
+.marken { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.marke-neu {
+  display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 0.75rem; font-weight: 600;
+  background: var(--see); color: #fff; white-space: nowrap; justify-self: start;
+}
+.verlauf-liste { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.verlauf-liste .mail { border-left: 4px solid var(--linie); }
+.verlauf-liste .mail.eingang { border-left-color: var(--harz); }
+.verlauf-liste .mail.ausgang { border-left-color: var(--see); }
+.mail-kopf { margin: 0; padding: 8px 14px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.8125rem; color: var(--tinte-leise); }
+.mail-kopf .richtung { font-weight: 600; color: var(--tinte); }
+.mail-kopf time { margin-left: auto; }
+.mail-kopf .zusatz { border: 1px solid var(--linie); border-radius: 99px; padding: 0 6px; }
+.mail-betreff span { display: block; font-weight: 400; font-size: 0.8125rem; color: var(--tinte-leise); }
+.verlauf-liste pre { max-height: 320px; }
+.postfach-angaben { margin: 4px 0; }
+.zuordnen { padding: 0 14px 12px; max-width: 520px; }

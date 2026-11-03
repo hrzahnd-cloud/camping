@@ -48,17 +48,20 @@ export default function Reservationen() {
   }, []);
   useEffect(laden, [laden]);
 
+  const inAblage = (ablageCode, x) => {
+    const a = ABLAGEN.find((y) => y.code === ablageCode);
+    return !a.status || a.status.includes(x.status) || (ablageCode === "offen" && x.neue_mails > 0);
+  };
   const anzahl = useMemo(() => Object.fromEntries(ABLAGEN.map((a) => [
-    a.code, (anfragen || []).filter((x) => !a.status || a.status.includes(x.status)).length,
-  ])), [anfragen]);
+    a.code, (anfragen || []).filter((x) => inAblage(a.code, x)).length,
+  ])), [anfragen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const liste = useMemo(() => {
-    const filter = ABLAGEN.find((a) => a.code === ablage).status;
     const s = suche.trim().toLowerCase();
     return (anfragen || [])
-      .filter((a) => !filter || filter.includes(a.status))
+      .filter((a) => inAblage(ablage, a))
       .filter((a) => !s || `${a.gast_name} ${a.gast_email}`.toLowerCase().includes(s));
-  }, [anfragen, ablage, suche]);
+  }, [anfragen, ablage, suche]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nachSpeichern = (anfrage) => { laden(); setAuswahl(anfrage.id); };
 
@@ -95,7 +98,13 @@ export default function Reservationen() {
             {liste.map((a) => (
               <li key={a.id}>
                 <button className="anfrage" aria-current={auswahl === a.id ? "true" : undefined} onClick={() => setAuswahl(a.id)}>
-                  <span className="zeile1"><strong>{a.gast_name}</strong><StatusMarke status={a.status} /></span>
+                  <span className="zeile1">
+                    <strong>{a.gast_name}</strong>
+                    <span className="marken">
+                      {a.neue_mails > 0 && <span className="marke-neu">{a.neue_mails === 1 ? "Neue Mail" : `${a.neue_mails} neue Mails`}</span>}
+                      <StatusMarke status={a.status} />
+                    </span>
+                  </span>
                   <span className="zeile2">
                     {zeitraum(a.gewuenscht_von, a.gewuenscht_bis)}
                     <span className="trenner" aria-hidden="true" /><TypMarke code={a.stellplatz_typ} />
@@ -233,6 +242,30 @@ function Antwort({ anfrage, onGesendet, onAbbrechen }) {
   );
 }
 
+function Verlauf({ mails, offen }) {
+  const zeit = (iso) => new Date(iso).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" });
+  return (
+    <details className="rohtext verlauf" open={offen}>
+      <summary>Mailverlauf ({mails.length})</summary>
+      <ol className="verlauf-liste">
+        {mails.map((m) => (
+          <li key={m.id} className={`mail ${m.richtung}`}>
+            <p className="mail-kopf">
+              <span className="richtung">{m.richtung === "eingang" ? "Vom Gast" : "Antwort an den Gast"}</span>
+              {!m.gelesen && <span className="marke-neu">neu</span>}
+              {m.weitergeleitet && <span className="zusatz">weitergeleitet</span>}
+              {m.quelle === "tool" && <span className="zusatz">im Tool vorbereitet</span>}
+              <time dateTime={m.datum}>{zeit(m.datum)}</time>
+            </p>
+            <p className="mail-betreff">{m.betreff || "(ohne Betreff)"}<span>{m.richtung === "eingang" ? `von ${m.von}` : `an ${m.an ?? ""}`}</span></p>
+            <pre>{m.text}</pre>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
 function Detail({ id, onGeaendert }) {
   const [anfrage, setAnfrage] = useState(null);
   const [bearbeiten, setBearbeiten] = useState(false);
@@ -245,9 +278,14 @@ function Detail({ id, onGeaendert }) {
     api.get(`/reservationsanfragen/${id}/mails`).then(setMails).catch(() => {});
   }, [id]);
   useEffect(() => {
-    api.get(`/reservationsanfragen/${id}`).then(setAnfrage).catch((e) => setFehler(e.message));
+    api.get(`/reservationsanfragen/${id}`).then((a) => {
+      setAnfrage(a);
+      // neue Mails des Gastes gelten als gelesen, sobald die Anfrage geöffnet ist
+      // (im Verlauf bleiben sie in dieser Ansicht als «neu» markiert)
+      if (a.neue_mails > 0) api.post(`/reservationsanfragen/${id}/mails/gelesen`).then(onGeaendert).catch(() => {});
+    }).catch((e) => setFehler(e.message));
     mailsLaden();
-  }, [id, mailsLaden]);
+  }, [id, mailsLaden]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const statusSetzen = async (status) => {
     setLaeuft(true); setFehler(null);
@@ -304,7 +342,7 @@ function Detail({ id, onGeaendert }) {
       <div className="aktionen">
         {anfrage.vollstaendig && ["geprueft_vollstaendig", "erstantwort_gesendet", "zahlung_ausstehend"].includes(anfrage.status) && (
           <button className={`knopf ${anfrage.status === "geprueft_vollstaendig" ? "haupt" : "neben"}`} onClick={() => setAntworten(true)}>
-            <Mail size={18} aria-hidden="true" />{mails.length ? "Weitere Antwort vorbereiten" : "Antwort vorbereiten"}
+            <Mail size={18} aria-hidden="true" />{mails.some((m) => m.richtung === "ausgang") ? "Weitere Antwort vorbereiten" : "Antwort vorbereiten"}
           </button>
         )}
         {(SCHRITTE[anfrage.status] || []).map(([status, text, art]) => (
@@ -314,17 +352,7 @@ function Detail({ id, onGeaendert }) {
       </div>
       {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
 
-      {mails.length > 0 && (
-        <details className="rohtext">
-          <summary>Gesendete Antworten ({mails.length})</summary>
-          {mails.map((m) => (
-            <div key={m.id} className="mail">
-              <p className="mail-betreff">{new Date(m.gesendet_am).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" })}: {m.betreff_final}</p>
-              <pre>{m.koerper_final}</pre>
-            </div>
-          ))}
-        </details>
-      )}
+      {mails.length > 0 && <Verlauf mails={mails} offen={anfrage.neue_mails > 0} />}
       {anfrage.rohtext && (
         <details className="rohtext">
           <summary>Originalnachricht anzeigen</summary>

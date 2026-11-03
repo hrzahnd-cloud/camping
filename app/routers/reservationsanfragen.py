@@ -15,12 +15,12 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.database import get_db
-from app.models.kommunikation import EmailVersand, EmailVorlage
+from app.models.kommunikation import EmailVersand, EmailVorlage, MailNachricht
 from app.models.reservation import Reservationsanfrage
 from app.schemas.reservation import (
     ReservationsanfrageCreate,
@@ -51,10 +51,9 @@ def mail_import_ausloesen(db: Session = Depends(get_db), settings: Settings = De
         raise HTTPException(503, f"Mail-Import nicht konfiguriert: {exc}")
     except OSError as exc:
         raise HTTPException(502, f"Postfach nicht erreichbar: {exc}")
-    return {
-        "neu": ergebnis.neu, "duplikate": ergebnis.duplikate,
-        "uebersprungen": ergebnis.uebersprungen, "fehler": ergebnis.fehler,
-    }
+    from dataclasses import asdict
+
+    return asdict(ergebnis)
 
 
 class Mailtext(BaseModel):
@@ -86,7 +85,8 @@ async def mail_aus_eml_importieren(request: Request, db: Session = Depends(get_d
     if art == "duplikat":
         raise HTTPException(409, "Diese Mail wurde bereits importiert")
     if anfrage is None:
-        raise HTTPException(422, "Mail enthält keinen verwertbaren Absender oder ist eine automatische Nachricht")
+        raise HTTPException(422, "Mail enthält keinen verwertbaren Absender, ist eine automatische Nachricht "
+                                 "oder eine eigene Antwort ohne passende Anfrage")
     return anfrage
 
 
@@ -113,7 +113,19 @@ def anfragen_auflisten(
     if nur_vollstaendige:
         stmt = stmt.where(Reservationsanfrage.vollstaendig.is_(True))
     stmt = stmt.order_by(Reservationsanfrage.eingangs_datum.desc())
-    return db.execute(stmt).scalars().all()
+    anfragen = db.execute(stmt).scalars().all()
+    neue = _neue_mails(db)
+    return [ReservationsanfrageOut.model_validate(a).model_copy(update={"neue_mails": neue.get(a.id, 0)})
+            for a in anfragen]
+
+
+def _neue_mails(db: Session, anfrage_id: uuid.UUID | None = None) -> dict:
+    stmt = (select(MailNachricht.reservationsanfrage_id, func.count())
+            .where(MailNachricht.gelesen.is_(False), MailNachricht.reservationsanfrage_id.is_not(None))
+            .group_by(MailNachricht.reservationsanfrage_id))
+    if anfrage_id:
+        stmt = stmt.where(MailNachricht.reservationsanfrage_id == anfrage_id)
+    return dict(db.execute(stmt).all())
 
 
 @router.get("/{anfrage_id}", response_model=ReservationsanfrageDetail)
@@ -121,7 +133,8 @@ def anfrage_lesen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
     anfrage = db.get(Reservationsanfrage, anfrage_id)
     if not anfrage:
         raise HTTPException(404, "Reservationsanfrage nicht gefunden")
-    return anfrage
+    return ReservationsanfrageDetail.model_validate(anfrage).model_copy(
+        update={"neue_mails": _neue_mails(db, anfrage_id).get(anfrage_id, 0)})
 
 
 @router.patch("/{anfrage_id}", response_model=ReservationsanfrageDetail)
@@ -213,14 +226,19 @@ class AntwortGesendet(BaseModel):
     text: str = Field(min_length=1, max_length=50000)
 
 
-class VersandOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+class VerlaufEintrag(BaseModel):
     id: uuid.UUID
-    gesendet_am: datetime
-    empfaenger: str
-    betreff_final: str
-    koerper_final: str
-    status: str
+    richtung: str
+    """eingang | ausgang"""
+    quelle: str
+    """tool (im Tool vorbereitet) | postfach (aus dem Tool-Postfach)"""
+    datum: datetime
+    von: str
+    an: str | None
+    betreff: str
+    text: str
+    gelesen: bool
+    weitergeleitet: bool
 
 
 def _vollstaendige_anfrage(db: Session, anfrage_id: uuid.UUID) -> Reservationsanfrage:
@@ -274,10 +292,30 @@ def antwort_als_gesendet_markieren(anfrage_id: uuid.UUID, daten: AntwortGesendet
     return anfrage
 
 
-@router.get("/{anfrage_id}/mails", response_model=list[VersandOut])
+def _utc(d: datetime) -> datetime:
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+@router.get("/{anfrage_id}/mails", response_model=list[VerlaufEintrag])
 def mails_zur_anfrage(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
-    return db.execute(
-        select(EmailVersand)
-        .where(EmailVersand.bezug_typ == "reservationsanfrage", EmailVersand.bezug_id == anfrage_id)
-        .order_by(EmailVersand.gesendet_am.desc())
-    ).scalars().all()
+    """Mailverlauf der Anfrage, neueste zuerst: im Tool vorbereitete Antworten und Mails aus dem Postfach."""
+    eintraege = [
+        VerlaufEintrag(id=v.id, richtung="ausgang", quelle="tool", datum=_utc(v.gesendet_am), von=v.gesendet_von,
+                       an=v.empfaenger, betreff=v.betreff_final, text=v.koerper_final, gelesen=True, weitergeleitet=False)
+        for v in db.execute(select(EmailVersand).where(EmailVersand.bezug_typ == "reservationsanfrage",
+                                                       EmailVersand.bezug_id == anfrage_id)).scalars()
+    ]
+    eintraege += [
+        VerlaufEintrag(id=n.id, richtung=n.richtung, quelle="postfach", datum=_utc(n.datum), von=n.von, an=n.an,
+                       betreff=n.betreff, text=n.text, gelesen=n.gelesen, weitergeleitet=n.weitergeleitet)
+        for n in db.execute(select(MailNachricht).where(MailNachricht.reservationsanfrage_id == anfrage_id)).scalars()
+    ]
+    return sorted(eintraege, key=lambda e: e.datum, reverse=True)
+
+
+@router.post("/{anfrage_id}/mails/gelesen", status_code=204)
+def mails_gelesen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Markiert neue Mails des Gastes als gelesen (beim Öffnen der Anfrage)."""
+    db.execute(update(MailNachricht).where(MailNachricht.reservationsanfrage_id == anfrage_id,
+                                           MailNachricht.gelesen.is_(False)).values(gelesen=True))
+    db.commit()

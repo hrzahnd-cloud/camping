@@ -6,6 +6,7 @@ const BEREICHE = [
   { code: "vorlagen", name: "Antwortvorlagen" },
   { code: "betrieb", name: "Betriebsangaben" },
   { code: "mwst", name: "MWST-Sätze" },
+  { code: "postfach", name: "Postfach" },
   { code: "module", name: "Module" },
 ];
 
@@ -22,6 +23,7 @@ export default function Einstellungen({ module, onGeaendert }) {
       {bereich === "vorlagen" && <Vorlagen />}
       {bereich === "betrieb" && <Betrieb />}
       {bereich === "mwst" && <MwstSaetze />}
+      {bereich === "postfach" && <Postfach />}
       {bereich === "module" && <Module module={module} onGeaendert={onGeaendert} />}
     </div>
   );
@@ -290,5 +292,87 @@ function MwstCode({ code, onGeaendert, onFehler }) {
         <div className="aktionen"><button className="knopf neben" onClick={() => setOffen(true)}>Neuen Satz hinterlegen</button></div>
       )}
     </article>
+  );
+}
+
+const ERGEBNIS_TEXTE = [
+  ["neu", "neue Anfragen"], ["nachtraege", "Mails von Gästen zu bestehenden Anfragen"],
+  ["antworten", "eigene Antworten zugeordnet"], ["nicht_zugeordnet", "nicht zugeordnet"],
+  ["duplikate", "schon vorhanden"], ["uebersprungen", "übersprungen (z.B. Abwesenheitsnotiz)"],
+];
+
+function Postfach() {
+  const [status, setStatus] = useState(null);
+  const [anfragen, setAnfragen] = useState([]);
+  const [meldung, setMeldung] = useState(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const laden = () => api.get("/einstellungen/postfach").then(setStatus).catch((e) => setMeldung({ art: "fehler", text: e.message }));
+  useEffect(() => { laden(); api.get("/reservationsanfragen").then(setAnfragen).catch(() => {}); }, []);
+
+  const abrufen = async () => {
+    setLaeuft(true); setMeldung(null);
+    try {
+      const e = await api.post("/reservationsanfragen/mail-import");
+      const teile = ERGEBNIS_TEXTE.filter(([k]) => e[k]).map(([k, t]) => `${e[k]} ${t}`);
+      setMeldung({ art: e.fehler?.length ? "warnung" : "ok", text: `Abgerufen: ${teile.join(", ") || "keine neuen Mails"}.${e.fehler?.length ? ` Fehler: ${e.fehler.join("; ")}` : ""}` });
+      laden();
+    } catch (err) { setMeldung({ art: "fehler", text: err.message }); } finally { setLaeuft(false); }
+  };
+  const zuordnen = async (mailId, anfrageId) => {
+    try { setStatus(await api.post(`/einstellungen/postfach/mails/${mailId}/zuordnen`, { anfrage_id: anfrageId })); setMeldung({ art: "ok", text: "Mail zugeordnet." }); }
+    catch (err) { setMeldung({ art: "fehler", text: err.message }); }
+  };
+
+  if (!status) return meldung ? <p className="meldung fehler">{meldung.text}</p> : <p className="leer">Wird geladen …</p>;
+  const zeit = (iso) => new Date(iso).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" });
+  return (
+    <section>
+      <p className="hinweis">
+        Reservationsmails und Antworten gelangen per «Umleiten» (empfohlen) oder «Weiterleiten» aus dem Mailkonto des Campings
+        in ein eigenes Postfach, das die App regelmässig abruft. Eigene Antworten (per BCC oder umgeleitet) werden der passenden
+        Anfrage zugeordnet, Antworten von Gästen ebenfalls.
+      </p>
+      {!status.eingerichtet && (
+        <p className="meldung warnung">
+          Das Postfach ist noch nicht eingerichtet. Dafür braucht es in Atoll die Angaben IMAP_HOST, IMAP_USER und IMAP_PASSWORD.
+        </p>
+      )}
+      <dl className="angaben postfach-angaben">
+        <dt>Postfach</dt><dd>{status.server ?? "nicht eingerichtet"}, Ordner {status.ordner}</dd>
+        <dt>Abruf</dt><dd>{status.intervall_sekunden > 0 ? `alle ${Math.round(status.intervall_sekunden / 60)} Minuten` : "nur von Hand"}</dd>
+        <dt>Eigene Adressen</dt><dd>{status.eigene_adressen.join(", ")}</dd>
+        <dt>Letzter Abruf</dt>
+        <dd>
+          {status.letzter_abruf ? zeit(status.letzter_abruf) : "noch keiner"}
+          {status.ergebnis && (
+            <span className="feldhinweis"> – {ERGEBNIS_TEXTE.filter(([k]) => status.ergebnis[k]).map(([k, t]) => `${status.ergebnis[k]} ${t}`).join(", ") || "keine neuen Mails"}
+              {status.ergebnis.fehler?.length ? `; ${status.ergebnis.fehler.length} Fehler` : ""}</span>
+          )}
+        </dd>
+      </dl>
+      <div className="aktionen">
+        <button className="knopf neben" onClick={abrufen} disabled={laeuft || !status.eingerichtet}>Postfach jetzt abrufen</button>
+      </div>
+      {meldung && <p className={`meldung ${meldung.art}`} role="status">{meldung.text}</p>}
+
+      <h2>Nicht zugeordnete Mails</h2>
+      {status.nicht_zugeordnet.length === 0 && <p className="leer">Keine. Alle Mails aus dem Postfach gehören zu einer Anfrage.</p>}
+      <ul className="verlauf-liste">
+        {status.nicht_zugeordnet.map((m) => (
+          <li key={m.id} className={`mail ${m.richtung}`}>
+            <p className="mail-kopf"><span className="richtung">{m.richtung === "eingang" ? "Eingang" : "Eigene Mail"}</span><time dateTime={m.datum}>{zeit(m.datum)}</time></p>
+            <p className="mail-betreff">{m.betreff || "(ohne Betreff)"}<span>{m.richtung === "eingang" ? `von ${m.von}` : `an ${m.an ?? ""}`}</span></p>
+            <pre>{m.text}</pre>
+            <div className="feld zuordnen">
+              <label htmlFor={`zuordnen-${m.id}`}>Einer Anfrage zuordnen</label>
+              <select id={`zuordnen-${m.id}`} defaultValue="" onChange={(e) => e.target.value && zuordnen(m.id, e.target.value)}>
+                <option value="">Anfrage wählen …</option>
+                {anfragen.map((a) => <option key={a.id} value={a.id}>{a.gast_name} ({a.gast_email}){a.gewuenscht_von ? `, ab ${a.gewuenscht_von.split("-").reverse().join(".")}` : ""}</option>)}
+              </select>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

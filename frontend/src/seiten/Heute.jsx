@@ -34,8 +34,9 @@ export default function Heute() {
     return {
       anreisen: aktiv.filter((a) => a.gewuenscht_von === heute),
       abreisen: aktiv.filter((a) => a.gewuenscht_bis === heute),
-      offen: (anfragen || []).filter((a) => ZU_BEARBEITEN.has(a.status))
-        .sort((x, y) => x.eingangs_datum.localeCompare(y.eingangs_datum)),
+      // Anfragen mit neuer Mail des Gastes zuerst, dann die älteste unbearbeitete
+      offen: (anfragen || []).filter((a) => ZU_BEARBEITEN.has(a.status) || a.neue_mails > 0)
+        .sort((x, y) => (y.neue_mails > 0) - (x.neue_mails > 0) || x.eingangs_datum.localeCompare(y.eingangs_datum)),
     };
   }, [anfragen, heute]);
 
@@ -68,6 +69,7 @@ export default function Heute() {
                 <li key={a.id}>
                   <a href="#/reservationen">
                     <span className="zeile1"><strong>{a.gast_name}</strong><StatusMarke status={a.status} /></span>
+                    {a.neue_mails > 0 && <span className="marke-neu">{a.neue_mails === 1 ? "Neue Mail vom Gast" : `${a.neue_mails} neue Mails vom Gast`}</span>}
                     <span className="zeile2">
                       {a.vollstaendig ? <><TypMarke code={a.stellplatz_typ} /> {datumKurz(a.gewuenscht_von)}</> : <>Es fehlt: {fehlendText(a.fehlende_angaben)}</>}
                     </span>
