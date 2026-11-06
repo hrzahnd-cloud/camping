@@ -10,9 +10,13 @@ const WOCHENTAG = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const TAG_LANG = new Intl.DateTimeFormat("de-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 const MONAT = new Intl.DateTimeFormat("de-CH", { month: "long", year: "numeric" });
 const STELLPLAETZE = ["zeltwiese", "wohnwagen", "camper"];
-const LAENDER = { CH: "Schweiz", DE: "Deutschland", FR: "Frankreich", IT: "Italien", AT: "Österreich", NL: "Niederlande",
-  BE: "Belgien", LU: "Luxemburg", GB: "Grossbritannien", DK: "Dänemark", ES: "Spanien", PL: "Polen", CZ: "Tschechien",
-  US: "USA", CA: "Kanada", AU: "Australien" };
+// häufige Herkunftsländer zuerst; weitere über «Anderes Land» als ISO-Code (HESTA)
+const LAENDER = { CH: "Schweiz", DE: "Deutschland", NL: "Niederlande", FR: "Frankreich", IT: "Italien", BE: "Belgien",
+  AT: "Österreich", GB: "Grossbritannien", LU: "Luxemburg", DK: "Dänemark", SE: "Schweden", NO: "Norwegen", FI: "Finnland",
+  ES: "Spanien", PT: "Portugal", PL: "Polen", CZ: "Tschechien", SK: "Slowakei", HU: "Ungarn", SI: "Slowenien", HR: "Kroatien",
+  IE: "Irland", LI: "Liechtenstein", US: "USA", CA: "Kanada", AU: "Australien", NZ: "Neuseeland", IL: "Israel",
+  CN: "China", JP: "Japan", KR: "Südkorea", IN: "Indien" };
+const ANDERES = "__anderes";
 
 function bereich(ansicht, bezug, frei) {
   if (ansicht === "monat") {
@@ -501,6 +505,7 @@ function EintragPanel({ id, heute, zurueck, onZurueck, onCheckin, onGeaendert, o
           <dt>Aufenthalt</dt><dd>{datumVoll(e.von)} bis {datumVoll(e.bis)}</dd>
           <dt>Stellplatz</dt><dd><TypMarke code={e.stellplatz_typ} />{e.platz ? `, Platz ${e.platz}` : ""}</dd>
           <dt>Personen</dt><dd>{personenLang(e.anzahl_erwachsene, e.anzahl_kinder)}</dd>
+          <dt>Nationalität</dt><dd>{LAENDER[e.nationalitaet] ?? e.nationalitaet ?? "–"}</dd>
           <dt>Adresse</dt><dd>{[e.strasse, [e.plz, e.ort].filter(Boolean).join(" "), LAENDER[e.land] ?? e.land].filter(Boolean).join(", ") || "–"}</dd>
           <dt>Kontakt</dt><dd>{[e.email, e.telefon].filter(Boolean).join(", ") || "–"}</dd>
           {e.anfrage?.anzahlung_erhalten && <><dt>Anzahlung</dt><dd>CHF {Number(e.anfrage.anzahlung_erhalten).toFixed(2)} erhalten</dd></>}
@@ -593,7 +598,8 @@ function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
   const [werte, setWerte] = useState({
     vorname: teile.length > 1 ? teile.slice(0, -1).join(" ") : teile[0] || "",
     nachname: teile.length > 1 ? teile[teile.length - 1] : "",
-    strasse: "", plz: "", ort: "", land: "CH", email: eintrag?.gast_email || "", telefon: eintrag?.gast_telefon || "",
+    nationalitaet: "", nationalitaet_iso: "",
+    strasse: "", plz: "", ort: "", land: "", email: eintrag?.gast_email || "", telefon: eintrag?.gast_telefon || "",
     stellplatz_typ: eintrag?.stellplatz_typ || "zeltwiese", platz: "",
     von: eintrag ? (eintrag.gewuenscht_von < heute ? eintrag.gewuenscht_von : heute) : heute,
     bis: eintrag?.gewuenscht_bis || isoDatum(plusTage(new Date(), 1)),
@@ -603,11 +609,16 @@ function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
   const [laeuft, setLaeuft] = useState(false);
   const feld = (name) => ({ id: `ci-${name}`, value: werte[name], onChange: (e) => setWerte({ ...werte, [name]: e.target.value }) });
 
+  const nationalitaet = werte.nationalitaet === ANDERES ? werte.nationalitaet_iso.trim().toUpperCase() : werte.nationalitaet;
+
   const absenden = async (e) => {
-    e.preventDefault(); setFehler(null); setLaeuft(true);
+    e.preventDefault(); setFehler(null);
+    if (!/^[A-Z]{2}$/.test(nationalitaet)) { setFehler("Bitte die Nationalität angeben (für die HESTA-Meldung)."); return; }
+    setLaeuft(true);
     try {
+      const { nationalitaet_iso, ...rest } = werte; // eslint-disable-line no-unused-vars
       onEingecheckt(await api.post("/aufenthalte", {
-        ...werte, reservationsanfrage_id: eintrag?.id ?? null,
+        ...rest, nationalitaet, reservationsanfrage_id: eintrag?.id ?? null,
         email: werte.email || null, telefon: werte.telefon || null, strasse: werte.strasse || null,
         plz: werte.plz || null, ort: werte.ort || null, land: werte.land || null, bemerkung: werte.bemerkung || null,
         anzahl_erwachsene: Number(werte.anzahl_erwachsene), anzahl_kinder: Number(werte.anzahl_kinder),
@@ -619,18 +630,22 @@ function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
     <form className="panel formular-schmal" onSubmit={absenden}>
       <h2>{eintrag ? `Check-in ${eintrag.gast_name}` : "Check-in ohne Reservation"}</h2>
       <p className="hinweis">
-        Erfasst Buchung und Aufenthalt{eintrag?.nummer ? ` zur Reservation ${eintrag.nummer}` : ""}. Die Adresse wird für Meldeschein und Kurtaxe gebraucht.
+        Erfasst Buchung und Aufenthalt{eintrag?.nummer ? ` zur Reservation ${eintrag.nummer}` : ""}. Nötig sind Name und
+        Nationalität (für die HESTA-Meldung), alles Weitere ist freiwillig.
       </p>
       <div className="felder zwei">
         <div className="feld"><label htmlFor="ci-vorname">Vorname</label><input required {...feld("vorname")} /></div>
         <div className="feld"><label htmlFor="ci-nachname">Nachname</label><input required {...feld("nachname")} /></div>
-        <div className="feld breit"><label htmlFor="ci-strasse">Strasse</label><input {...feld("strasse")} autoComplete="off" /></div>
-        <div className="feld"><label htmlFor="ci-plz">PLZ</label><input {...feld("plz")} /></div>
-        <div className="feld"><label htmlFor="ci-ort">Ort</label><input {...feld("ort")} /></div>
-        <div className="feld"><label htmlFor="ci-land">Land</label>
-          <select {...feld("land")}>{Object.entries(LAENDER).map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select></div>
-        <div className="feld"><label htmlFor="ci-telefon">Telefon</label><input type="tel" {...feld("telefon")} /></div>
-        <div className="feld breit"><label htmlFor="ci-email">E-Mail</label><input type="email" {...feld("email")} /></div>
+        <div className={`feld${werte.nationalitaet === ANDERES ? "" : " breit"}`}><label htmlFor="ci-nationalitaet">Nationalität</label>
+          <select required {...feld("nationalitaet")}>
+            <option value="">Bitte wählen</option>
+            {Object.entries(LAENDER).map(([c, n]) => <option key={c} value={c}>{n}</option>)}
+            <option value={ANDERES}>Anderes Land …</option>
+          </select></div>
+        {werte.nationalitaet === ANDERES && (
+          <div className="feld"><label htmlFor="ci-nationalitaet_iso">Ländercode (ISO, 2 Buchstaben)</label>
+            <input required maxLength={2} pattern="[A-Za-z]{2}" placeholder="z.B. GR" {...feld("nationalitaet_iso")} /></div>
+        )}
         <div className="feld"><label htmlFor="ci-stellplatz_typ">Stellplatz</label>
           <select {...feld("stellplatz_typ")}>{TYPEN.map((t) => <option key={t.code} value={t.code}>{t.name}</option>)}</select></div>
         <div className="feld"><label htmlFor="ci-platz">Platz (optional)</label><input {...feld("platz")} placeholder="z.B. 17" /></div>
@@ -640,6 +655,18 @@ function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
         <div className="feld"><label htmlFor="ci-anzahl_kinder">Kinder</label><input type="number" min="0" max="50" required {...feld("anzahl_kinder")} /></div>
         <div className="feld breit"><label htmlFor="ci-bemerkung">Bemerkung</label><textarea rows="2" {...feld("bemerkung")} /></div>
       </div>
+      <details className="optional">
+        <summary>Adresse und Kontakt (optional)</summary>
+        <div className="felder zwei">
+          <div className="feld breit"><label htmlFor="ci-strasse">Strasse</label><input {...feld("strasse")} autoComplete="off" /></div>
+          <div className="feld"><label htmlFor="ci-plz">PLZ</label><input {...feld("plz")} /></div>
+          <div className="feld"><label htmlFor="ci-ort">Ort</label><input {...feld("ort")} /></div>
+          <div className="feld"><label htmlFor="ci-land">Land</label>
+            <select {...feld("land")}><option value="">–</option>{Object.entries(LAENDER).map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select></div>
+          <div className="feld"><label htmlFor="ci-telefon">Telefon</label><input type="tel" {...feld("telefon")} /></div>
+          <div className="feld breit"><label htmlFor="ci-email">E-Mail</label><input type="email" {...feld("email")} /></div>
+        </div>
+      </details>
       {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
       <div className="aktionen">
         <button className="knopf haupt" type="submit" disabled={laeuft}><LogIn size={18} aria-hidden="true" />Einchecken</button>

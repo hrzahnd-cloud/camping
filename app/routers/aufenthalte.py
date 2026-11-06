@@ -6,8 +6,9 @@ Check-in in der Belegung: Buchung & Aufenthalt erfassen.
   Reservation erhält den Status «angereist».
 - Ohne Reservation (z.B. Nebensaison, Gast steht vor der Tür).
 
-Die Stellplatz-Zuteilung erfolgt ausserhalb des Tools; erfasst werden der
-Stellplatz-Typ und optional die Platznummer als Freitext.
+Pflicht sind Name und Nationalität (für die HESTA-Meldung); die Adresse ist
+optional. Die Stellplatz-Zuteilung erfolgt ausserhalb des Tools; erfasst
+werden der Stellplatz-Typ und optional die Platznummer als Freitext.
 """
 import uuid
 from datetime import date, timedelta
@@ -33,7 +34,9 @@ class CheckIn(BaseModel):
     plz: str | None = Field(default=None, max_length=20)
     ort: str | None = Field(default=None, max_length=100)
     land: str | None = Field(default=None, pattern="^[A-Z]{2}$")
-    nationalitaet: str | None = Field(default=None, pattern="^[A-Z]{2}$")
+    """Land der Adresse, optional."""
+    nationalitaet: str = Field(pattern="^[A-Z]{2}$")
+    """Pflicht: ISO-Ländercode, wird für die HESTA-Meldung gebraucht."""
     email: EmailStr | None = None
     telefon: str | None = Field(default=None, max_length=50)
     stellplatz_typ: StellplatzTyp
@@ -55,6 +58,7 @@ class AufenthaltDetail(BaseModel):
     plz: str | None
     ort: str | None
     land: str | None
+    nationalitaet: str | None
     email: str | None
     telefon: str | None
     stellplatz_typ: str | None
@@ -71,7 +75,7 @@ def _detail(b: Buchung) -> AufenthaltDetail:
     g = b.hauptgast
     return AufenthaltDetail(
         buchung_id=b.id, reservationsanfrage_id=b.reservationsanfrage_id, gast_id=g.id, vorname=g.vorname,
-        nachname=g.nachname, strasse=g.strasse, plz=g.plz, ort=g.ort, land=g.land, email=g.email, telefon=g.telefon,
+        nachname=g.nachname, strasse=g.strasse, plz=g.plz, ort=g.ort, land=g.land, nationalitaet=g.nationalitaet, email=g.email, telefon=g.telefon,
         stellplatz_typ=b.stellplatz_typ, platz=b.platz, von=b.von, bis=b.bis, anzahl_erwachsene=b.anzahl_erwachsene,
         anzahl_kinder=b.anzahl_kinder, status=b.status, bemerkung=b.bemerkung,
     )
@@ -101,7 +105,7 @@ def einchecken(daten: CheckIn, db: Session = Depends(get_db)):
             raise HTTPException(400, "Einchecken geht erst am Anreisetag")
 
     gast = Gast(vorname=daten.vorname.strip(), nachname=daten.nachname.strip(), strasse=daten.strasse,
-                plz=daten.plz, ort=daten.ort, land=daten.land, nationalitaet=daten.nationalitaet or daten.land,
+                plz=daten.plz, ort=daten.ort, land=daten.land, nationalitaet=daten.nationalitaet,
                 email=daten.email or (anfrage.gast_email if anfrage else None),
                 telefon=daten.telefon or (anfrage.gast_telefon if anfrage else None))
     db.add(gast)

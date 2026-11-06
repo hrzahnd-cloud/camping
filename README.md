@@ -73,8 +73,9 @@ Spycher separat. Die Übersicht zeigt je Nacht die Auslastung, die Zahlen je Typ
 und Abreisen; ein Klick öffnet rechts den Tag bzw. den Eintrag, ohne die Seite zu verlassen.
 
 **Check-in, Aufenthalt:** Ab dem Anreisetag lässt sich eine akzeptierte Reservation in der
-Belegung einchecken: Gast (Adresse für Meldeschein/Kurtaxe), Buchung und Aufenthalt entstehen in
-einem Schritt (Platznummer optional als Freitext), die Reservation wird «angereist». Gäste ohne
+Belegung einchecken: Gast, Buchung und Aufenthalt entstehen in
+einem Schritt. Pflicht sind Name und Nationalität (HESTA), Adresse und Platznummer sind optional;
+die Reservation wird «angereist». Gäste ohne
 Reservation (Nebensaison) über «Check-in ohne Reservation». «Abreise erfassen» gibt den Platz
 frei. Ist ein Gast nicht erschienen, zeigt «Heute» ihn am Morgen danach; «Nicht angereist» gibt
 den Platz frei, eine Anzahlung bleibt erfasst. Stornieren behält die Anfrage, «Endgültig

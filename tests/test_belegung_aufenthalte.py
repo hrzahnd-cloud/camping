@@ -61,13 +61,13 @@ def test_checkin_aus_reservation_und_nicht_angereist(client):
     assert {x["gast_name"] for x in offen} == {"Lea Muster", "Max Fehlt"}
 
     # Check-in in der Zukunft nicht möglich
-    r = client.post("/aufenthalte", json={"reservationsanfrage_id": zukunft["id"], "vorname": "Kommt", "nachname": "Später",
+    r = client.post("/aufenthalte", json={"nationalitaet": "CH", "reservationsanfrage_id": zukunft["id"], "vorname": "Kommt", "nachname": "Später",
                                           "stellplatz_typ": "wohnwagen", "von": str(zukunft["gewuenscht_von"]),
                                           "bis": str(zukunft["gewuenscht_bis"])})
     assert r.status_code == 400
 
     r = client.post("/aufenthalte", json={
-        "reservationsanfrage_id": a["id"], "vorname": "Lea", "nachname": "Muster", "land": "CH", "plz": "3000", "ort": "Bern",
+        "reservationsanfrage_id": a["id"], "nationalitaet": "CH", "vorname": "Lea", "nachname": "Muster", "land": "CH", "plz": "3000", "ort": "Bern",
         "stellplatz_typ": "wohnwagen", "platz": " 17 ", "von": str(gestern), "bis": str(HEUTE + timedelta(days=3)),
         "anzahl_erwachsene": 2, "anzahl_kinder": 1})
     assert r.status_code == 201, r.text
@@ -98,20 +98,20 @@ def test_checkin_aus_reservation_und_nicht_angereist(client):
 
 
 def test_checkin_ohne_reservation_und_loeschen(client):
-    r = client.post("/aufenthalte", json={"vorname": "Ohne", "nachname": "Anmeldung", "stellplatz_typ": "zeltwiese",
+    r = client.post("/aufenthalte", json={"nationalitaet": "DE", "vorname": "Ohne", "nachname": "Anmeldung", "stellplatz_typ": "zeltwiese",
                                           "von": str(HEUTE), "bis": str(HEUTE + timedelta(days=1)), "anzahl_erwachsene": 1})
     assert r.status_code == 201 and r.json()["reservationsanfrage_id"] is None
     assert client.get(f"/belegung?von={HEUTE}&bis={HEUTE}").json()["auslastung"][0]["belegt"] == 1
     assert client.delete(f"/aufenthalte/{r.json()['buchung_id']}").status_code == 204
     assert client.get(f"/belegung?von={HEUTE}&bis={HEUTE}").json()["auslastung"][0]["belegt"] == 0
-    r = client.post("/aufenthalte", json={"vorname": "X", "nachname": "Y", "stellplatz_typ": "zeltwiese",
+    r = client.post("/aufenthalte", json={"nationalitaet": "DE", "vorname": "X", "nachname": "Y", "stellplatz_typ": "zeltwiese",
                                           "von": str(HEUTE), "bis": str(HEUTE)})
     assert r.status_code == 400
 
 
 def test_aufenthalt_loeschen_setzt_reservation_zurueck_und_anfrage_loeschen(client):
     a = _anfrage(client, HEUTE, HEUTE + timedelta(days=2), name="Ina Zurück")
-    auf = client.post("/aufenthalte", json={"reservationsanfrage_id": a["id"], "vorname": "Ina", "nachname": "Zurück",
+    auf = client.post("/aufenthalte", json={"nationalitaet": "CH", "reservationsanfrage_id": a["id"], "vorname": "Ina", "nachname": "Zurück",
                                             "stellplatz_typ": "wohnwagen", "von": str(HEUTE),
                                             "bis": str(HEUTE + timedelta(days=2))}).json()
     assert client.delete(f"/reservationsanfragen/{a['id']}").status_code == 400  # Aufenthalt vorhanden
@@ -119,3 +119,12 @@ def test_aufenthalt_loeschen_setzt_reservation_zurueck_und_anfrage_loeschen(clie
     assert client.get(f"/reservationsanfragen/{a['id']}").json()["status"] == "bezahlt_akzeptiert"
     assert client.delete(f"/reservationsanfragen/{a['id']}").status_code == 204
     assert client.get(f"/reservationsanfragen/{a['id']}").status_code == 404
+
+
+def test_checkin_braucht_nationalitaet_aber_keine_adresse(client):
+    basis = {"vorname": "Nur", "nachname": "Name", "stellplatz_typ": "camper",
+             "von": str(HEUTE), "bis": str(HEUTE + timedelta(days=1))}
+    assert client.post("/aufenthalte", json=basis).status_code == 422
+    assert client.post("/aufenthalte", json={**basis, "nationalitaet": "Schweiz"}).status_code == 422
+    r = client.post("/aufenthalte", json={**basis, "nationalitaet": "NL"})
+    assert r.status_code == 201 and r.json()["nationalitaet"] == "NL" and r.json()["strasse"] is None

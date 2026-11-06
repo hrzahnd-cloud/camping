@@ -523,3 +523,4 @@ button.zb-tag { border: 0; border-bottom: 1px solid var(--linie); background: no
 .heute-karte.nicht-angereist { border-color: var(--harz); box-shadow: inset 4px 0 0 var(--harz), var(--schatten); margin-bottom: 16px; }
 .heute-liste li.mit-aktionen { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--nebel); }
 .heute-liste li.mit-aktionen .aktionen { gap: 6px; }
+details.optional summary { cursor: pointer; font-weight: 600; color: var(--see); margin-bottom: 10px; }
