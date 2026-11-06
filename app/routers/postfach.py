@@ -11,7 +11,7 @@ from app.config import Settings, get_settings
 from app.database import get_db
 from app.models.kommunikation import MailNachricht
 from app.models.reservation import Reservationsanfrage
-from app.services.anfrage_pruefung import PRUEF_STATUS
+from app.services.antwortmail import ist_zahlungsantwort, status_nach_antwort
 from app.services.mail_import import imap_konfiguriert
 from app.services.mailverlauf import eigene_adressen, letzter_abruf
 
@@ -71,7 +71,7 @@ def mail_zuordnen(mail_id: uuid.UUID, daten: Zuordnung, db: Session = Depends(ge
     if not nachricht or not anfrage:
         raise HTTPException(404, "Mail oder Anfrage nicht gefunden")
     nachricht.reservationsanfrage_id = anfrage.id
-    if nachricht.richtung == "ausgang" and anfrage.vollstaendig and anfrage.status in PRUEF_STATUS:
-        anfrage.status = "erstantwort_gesendet"
+    if nachricht.richtung == "ausgang":
+        status_nach_antwort(anfrage, ist_zahlungsantwort(nachricht.text))
     db.commit()
     return postfach_status(db, settings)

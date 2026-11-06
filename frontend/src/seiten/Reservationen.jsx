@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardPaste, Copy, Mail, Plus, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ClipboardPaste, Copy, Mail, MessageSquare, Plus, Search } from "lucide-react";
 import { api } from "../api.js";
 import { TypMarke } from "../typen.jsx";
 import {
@@ -8,7 +8,7 @@ import {
 
 const ABLAGEN = [
   { code: "offen", name: "Zu bearbeiten", status: ["neu", "unvollstaendig", "geprueft_vollstaendig"] },
-  { code: "laufend", name: "Warten auf Gast", status: ["erstantwort_gesendet", "zahlung_ausstehend"] },
+  { code: "laufend", name: "Warten auf Gast", status: ["in_abklaerung", "erstantwort_gesendet", "zahlung_ausstehend"] },
   { code: "akzeptiert", name: "Akzeptiert", status: ["bezahlt_akzeptiert"] },
   { code: "erledigt", name: "Abgelehnt / storniert", status: ["abgelehnt", "storniert"] },
   { code: "alle", name: "Alle", status: null },
@@ -19,12 +19,16 @@ const SCHRITTE = {
   neu: [],
   unvollstaendig: [["abgelehnt", "Ablehnen", "leise"]],
   geprueft_vollstaendig: [["erstantwort_gesendet", "Schon beantwortet", "neben"], ["abgelehnt", "Ablehnen", "leise"]],
+  in_abklaerung: [["erstantwort_gesendet", "Anzahlung schon angefordert", "neben"], ["abgelehnt", "Ablehnen", "leise"]],
   erstantwort_gesendet: [["zahlung_ausstehend", "Wartet auf Zahlung", "neben"], ["bezahlt_akzeptiert", "Zahlung erhalten, akzeptieren", "haupt"], ["abgelehnt", "Ablehnen", "leise"]],
   zahlung_ausstehend: [["bezahlt_akzeptiert", "Zahlung erhalten, akzeptieren", "haupt"], ["storniert", "Stornieren", "leise"]],
   bezahlt_akzeptiert: [["storniert", "Stornieren", "leise"]],
   abgelehnt: [["neu", "Wieder öffnen", "neben"]],
   storniert: [["neu", "Wieder öffnen", "neben"]],
 };
+
+// wie _STATUS_NUR_VOLLSTAENDIG im Backend
+const NUR_VOLLSTAENDIG = new Set(["erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert"]);
 
 const LEER = {
   quelle: "manuell", sprache: "de", gast_name: "", gast_email: "", gast_telefon: "",
@@ -158,20 +162,59 @@ function Mailtext({ onGespeichert, onAbbrechen }) {
   );
 }
 
-function Antwort({ anfrage, onGesendet, onAbbrechen }) {
+const FREI = "freie_antwort";
+
+function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
+  const frei = typ === FREI;
   const [eingabe, setEingabe] = useState({ sprache: anfrage.sprache || "de", betrag: "", zahlungsfrist: "" });
   const [entwurf, setEntwurf] = useState(null);
   const [fehler, setFehler] = useState(null);
   const [kopiert, setKopiert] = useState(null);
   const [laeuft, setLaeuft] = useState(false);
+  const textfeld = useRef(null);
+  const cursor = useRef(null);
 
-  const erstellen = async (e) => {
-    e.preventDefault(); setFehler(null); setLaeuft(true);
+  const basis = useRef(null); // erstellter Text und Einfügestelle, um den eigenen Text zu erkennen
+
+  const vorbereiten = useCallback(async (werte, eigenerText = "") => {
+    setFehler(null); setLaeuft(true);
     try {
-      setEntwurf(await api.post(`/reservationsanfragen/${anfrage.id}/antwort/vorbereiten`, {
-        sprache: eingabe.sprache, betrag: eingabe.betrag, zahlungsfrist: eingabe.zahlungsfrist || null,
-      }));
+      const e = await api.post(`/reservationsanfragen/${anfrage.id}/antwort/vorbereiten`, frei
+        ? { typ: FREI, sprache: werte.sprache }
+        : { sprache: werte.sprache, betrag: werte.betrag, zahlungsfrist: werte.zahlungsfrist || null });
+      if (frei && e.einfuege_position != null) {
+        // Platz für den eigenen Text zwischen Anrede und Gruss
+        const p = e.einfuege_position;
+        basis.current = { vor: e.text.slice(0, p), nach: e.text.slice(p) };
+        e.text = `${basis.current.vor}${eigenerText || "\n\n"}${basis.current.nach}`;
+        cursor.current = eigenerText ? p + eigenerText.replace(/\s+$/, "").length : p;
+      }
+      setEntwurf(e);
     } catch (err) { setFehler(err.message); } finally { setLaeuft(false); }
+  }, [anfrage.id, frei]);
+
+  // Freie Antwort: Text sofort erstellen
+  useEffect(() => { if (frei) vorbereiten({ sprache: anfrage.sprache || "de" }); }, [frei, vorbereiten, anfrage.sprache]);
+
+  useEffect(() => {
+    if (entwurf && cursor.current != null && textfeld.current) {
+      textfeld.current.focus();
+      textfeld.current.setSelectionRange(cursor.current, cursor.current);
+      cursor.current = null;
+    }
+  }, [entwurf]);
+
+  const spracheWechseln = (sprache) => {
+    const werte = { ...eingabe, sprache };
+    setEingabe(werte);
+    if (!frei) return;
+    // Bereits geschriebenen Text zwischen Anrede und Gruss übernehmen
+    let eigenerText = "";
+    const b = basis.current;
+    if (entwurf && b && entwurf.text.startsWith(b.vor) && entwurf.text.endsWith(b.nach)) {
+      eigenerText = entwurf.text.slice(b.vor.length, entwurf.text.length - b.nach.length);
+    }
+    vorbereiten(werte, eigenerText.trim() ? eigenerText : "");
   };
 
   const kopieren = async (was, inhalt) => {
@@ -192,26 +235,42 @@ function Antwort({ anfrage, onGesendet, onAbbrechen }) {
     } catch (err) { setFehler(err.message); } finally { setLaeuft(false); }
   };
 
+  const neuerStatus = frei
+    ? (["erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert"].includes(anfrage.status) ? null : "In Abklärung")
+    : "Antwort gesendet";
+
   return (
     <div className="formular">
-      <h2>Antwort an {anfrage.gast_name}</h2>
-      <form className="felder" onSubmit={erstellen}>
+      <h2>{frei ? "Freie Antwort" : "Antwort mit Anzahlung"} an {anfrage.gast_name}</h2>
+      {frei && (
+        <p className="hinweis">
+          Für Fragen des Gastes, ohne Aufforderung zur Anzahlung: Anrede, Ihr Text und die Signatur. Beim Wechsel der
+          Sprache werden Anrede, Gruss und Betreff angepasst, Ihr Text bleibt.
+        </p>
+      )}
+      <form className="felder" onSubmit={(e) => { e.preventDefault(); vorbereiten(eingabe); }}>
         <label>Sprache
-          <select value={eingabe.sprache} onChange={(e) => setEingabe({ ...eingabe, sprache: e.target.value })}>
+          <select value={eingabe.sprache} onChange={(e) => spracheWechseln(e.target.value)}>
             {Object.entries(SPRACHEN).map(([c, n]) => <option key={c} value={c}>{n}</option>)}
           </select>
         </label>
-        <label>Anzahlung in CHF
-          <input required type="number" min="0.05" step="0.05" inputMode="decimal" value={eingabe.betrag}
-            onChange={(e) => setEingabe({ ...eingabe, betrag: e.target.value })} />
-        </label>
-        <label>Zahlungsfrist (optional)
-          <input type="date" value={eingabe.zahlungsfrist} onChange={(e) => setEingabe({ ...eingabe, zahlungsfrist: e.target.value })} />
-        </label>
-        <div className="aktionen breit">
-          <button className="knopf haupt" type="submit" disabled={laeuft}>{entwurf ? "Text neu erstellen" : "Text erstellen"}</button>
-          <button className="knopf leise" type="button" onClick={onAbbrechen}>Abbrechen</button>
-        </div>
+        {!frei && (
+          <>
+            <label>Anzahlung in CHF
+              <input required type="number" min="0.05" step="0.05" inputMode="decimal" value={eingabe.betrag}
+                onChange={(e) => setEingabe({ ...eingabe, betrag: e.target.value })} />
+            </label>
+            <label>Zahlungsfrist (optional)
+              <input type="date" value={eingabe.zahlungsfrist} onChange={(e) => setEingabe({ ...eingabe, zahlungsfrist: e.target.value })} />
+            </label>
+          </>
+        )}
+        {(!frei || !entwurf) && (
+          <div className="aktionen breit">
+            {!frei && <button className="knopf haupt" type="submit" disabled={laeuft}>{entwurf ? "Text neu erstellen" : "Text erstellen"}</button>}
+            <button className="knopf leise" type="button" onClick={onAbbrechen}>Abbrechen</button>
+          </div>
+        )}
       </form>
       {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
 
@@ -219,14 +278,15 @@ function Antwort({ anfrage, onGesendet, onAbbrechen }) {
         <>
           {entwurf.warnungen.map((w) => <p key={w} className="meldung warnung">{w}. Unter Einstellungen › Betriebsangaben ergänzen.</p>)}
           <p className="hinweis">
-            Prüfen und bei Bedarf anpassen. Danach den Text in Ihr Mailprogramm übernehmen, an {entwurf.empfaenger} senden
-            und hier als gesendet markieren.
+            {frei ? "Ihre Antwort zwischen Anrede und Gruss schreiben." : "Prüfen und bei Bedarf anpassen."} Danach den Text in
+            Ihr Mailprogramm übernehmen, an {entwurf.empfaenger} senden und hier als gesendet markieren.
           </p>
           <div className="feld"><label htmlFor="antwort-an">An</label><input id="antwort-an" readOnly value={entwurf.empfaenger} /></div>
           <div className="feld"><label htmlFor="antwort-betreff">Betreff</label>
             <input id="antwort-betreff" value={entwurf.betreff} onChange={(e) => setEntwurf({ ...entwurf, betreff: e.target.value })} /></div>
           <div className="feld"><label htmlFor="antwort-text">Text</label>
-            <textarea id="antwort-text" rows="22" value={entwurf.text} onChange={(e) => setEntwurf({ ...entwurf, text: e.target.value })} /></div>
+            <textarea id="antwort-text" ref={textfeld} rows={frei ? 14 : 22} value={entwurf.text}
+              onChange={(e) => setEntwurf({ ...entwurf, text: e.target.value })} /></div>
           <div className="aktionen">
             <button className="knopf neben" type="button" onClick={() => kopieren("betreff", entwurf.betreff)}><Copy size={16} aria-hidden="true" />{kopiert === "betreff" ? "Betreff kopiert" : "Betreff kopieren"}</button>
             <button className="knopf neben" type="button" onClick={() => kopieren("text", entwurf.text)}><Copy size={16} aria-hidden="true" />{kopiert === "text" ? "Text kopiert" : "Text kopieren"}</button>
@@ -234,8 +294,12 @@ function Antwort({ anfrage, onGesendet, onAbbrechen }) {
           </div>
           <div className="aktionen">
             <button className="knopf haupt" type="button" disabled={laeuft} onClick={gesendet}>Als gesendet markieren</button>
+            {frei && <button className="knopf leise" type="button" onClick={onAbbrechen}>Abbrechen</button>}
           </div>
-          <p className="hinweis">«Als gesendet markieren» speichert den Text im Protokoll der Anfrage und setzt den Status auf «Antwort gesendet».</p>
+          <p className="hinweis">
+            «Als gesendet markieren» speichert den Text im Mailverlauf der Anfrage
+            {neuerStatus ? ` und setzt den Status auf «${neuerStatus}».` : ". Der Status bleibt unverändert."}
+          </p>
         </>
       )}
     </div>
@@ -269,7 +333,7 @@ function Verlauf({ mails, offen }) {
 function Detail({ id, onGeaendert }) {
   const [anfrage, setAnfrage] = useState(null);
   const [bearbeiten, setBearbeiten] = useState(false);
-  const [antworten, setAntworten] = useState(false);
+  const [antworten, setAntworten] = useState(null); // null | Vorlagentyp
   const [mails, setMails] = useState([]);
   const [fehler, setFehler] = useState(null);
   const [laeuft, setLaeuft] = useState(false);
@@ -301,8 +365,9 @@ function Detail({ id, onGeaendert }) {
     return (
       <Antwort
         anfrage={anfrage}
-        onGesendet={(a) => { setAnfrage(a); setAntworten(false); mailsLaden(); onGeaendert(); }}
-        onAbbrechen={() => setAntworten(false)}
+        typ={antworten}
+        onGesendet={(a) => { setAnfrage(a); setAntworten(null); mailsLaden(); onGeaendert(); }}
+        onAbbrechen={() => setAntworten(null)}
       />
     );
   }
@@ -340,12 +405,18 @@ function Detail({ id, onGeaendert }) {
       </dl>
 
       <div className="aktionen">
-        {anfrage.vollstaendig && ["geprueft_vollstaendig", "erstantwort_gesendet", "zahlung_ausstehend"].includes(anfrage.status) && (
-          <button className={`knopf ${anfrage.status === "geprueft_vollstaendig" ? "haupt" : "neben"}`} onClick={() => setAntworten(true)}>
-            <Mail size={18} aria-hidden="true" />{mails.some((m) => m.richtung === "ausgang") ? "Weitere Antwort vorbereiten" : "Antwort vorbereiten"}
+        {anfrage.vollstaendig && ["geprueft_vollstaendig", "in_abklaerung", "erstantwort_gesendet", "zahlung_ausstehend"].includes(anfrage.status) && (
+          <button className={`knopf ${["geprueft_vollstaendig", "in_abklaerung"].includes(anfrage.status) ? "haupt" : "neben"}`}
+            onClick={() => setAntworten("erstantwort_zahlungsinfo")}>
+            <Mail size={18} aria-hidden="true" />Antwort mit Anzahlung
           </button>
         )}
-        {(SCHRITTE[anfrage.status] || []).map(([status, text, art]) => (
+        {!["abgelehnt", "storniert"].includes(anfrage.status) && (
+          <button className="knopf neben" onClick={() => setAntworten(FREI)}>
+            <MessageSquare size={18} aria-hidden="true" />Freie Antwort
+          </button>
+        )}
+        {(SCHRITTE[anfrage.status] || []).filter(([status]) => anfrage.vollstaendig || !NUR_VOLLSTAENDIG.has(status)).map(([status, text, art]) => (
           <button key={status} className={`knopf ${art}`} disabled={laeuft} onClick={() => statusSetzen(status)}>{text}</button>
         ))}
         <button className="knopf neben" onClick={() => setBearbeiten(true)}>Bearbeiten</button>

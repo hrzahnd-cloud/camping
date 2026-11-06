@@ -12,6 +12,7 @@ export const STATUS = {
   neu: { name: "Neu", ton: "info" },
   unvollstaendig: { name: "Angaben fehlen", ton: "warnung" },
   geprueft_vollstaendig: { name: "Vollständig", ton: "info" },
+  in_abklaerung: { name: "In Abklärung", ton: "offen" },
   erstantwort_gesendet: { name: "Antwort gesendet", ton: "offen" },
   zahlung_ausstehend: { name: "Zahlung ausstehend", ton: "offen" },
   bezahlt_akzeptiert: { name: "Akzeptiert", ton: "ok" },

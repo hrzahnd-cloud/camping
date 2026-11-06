@@ -129,3 +129,57 @@ def test_personen_einzahl_mehrzahl():
     assert am.personen_text(3, 2, "fr") == "3 adultes, 2 enfants"
     assert am.personen_text(1, 1, "it") == "1 adulto, 1 bambino"
     assert am.personen_text(3, 0, "en") == "3 adults"
+
+
+def test_freie_antwort_auch_bei_unvollstaendiger_anfrage(client):
+    client.put("/einstellungen/betrieb", json=BETRIEB)
+    a = _anfrage(client, stellplatz_typ=None, sprache="de")
+    e = client.post(f"/reservationsanfragen/{a['id']}/antwort/vorbereiten",
+                    json={"typ": "freie_antwort", "sprache": "de"})
+    assert e.status_code == 200
+    e = e.json()
+    assert e["typ"] == "freie_antwort" and e["warnungen"] == []
+    assert e["text"].startswith("Guten Tag Mia Beispiel\n\n")
+    assert e["text"].endswith(BETRIEB["signatur"])
+    assert "IBAN" not in e["text"] and "Check-in" not in e["text"]
+    assert e["text"][e["einfuege_position"]:].startswith("Freundliche Grüsse")
+    # Ohne Mail des Gastes: Standardbetreff
+    assert e["betreff"] == "Ihre Anfrage – Panorama-Camping Aeschi"
+
+    eigener = e["text"][:e["einfuege_position"]] + "Hunde sind bei uns willkommen.\n\n" + e["text"][e["einfuege_position"]:]
+    r = client.post(f"/reservationsanfragen/{a['id']}/antwort/gesendet",
+                    json={"vorlage_id": e["vorlage_id"], "betreff": e["betreff"], "text": eigener})
+    assert r.status_code == 200 and r.json()["status"] == "in_abklaerung"
+
+    # Danach vervollständigt: Antwort mit Anzahlung führt weiter
+    p = client.patch(f"/reservationsanfragen/{a['id']}", json={"stellplatz_typ": "zeltwiese"})
+    assert p.status_code == 200, p.text
+    z = client.post(f"/reservationsanfragen/{a['id']}/antwort/vorbereiten", json={"sprache": "de", "betrag": "80"}).json()
+    r = client.post(f"/reservationsanfragen/{a['id']}/antwort/gesendet",
+                    json={"vorlage_id": z["vorlage_id"], "betreff": z["betreff"], "text": z["text"]})
+    assert r.json()["status"] == "erstantwort_gesendet"
+    # Eine spätere freie Antwort setzt den Status nicht zurück
+    f = client.post(f"/reservationsanfragen/{a['id']}/antwort/vorbereiten", json={"typ": "freie_antwort", "sprache": "de"}).json()
+    r = client.post(f"/reservationsanfragen/{a['id']}/antwort/gesendet",
+                    json={"vorlage_id": f["vorlage_id"], "betreff": f["betreff"], "text": f["text"]})
+    assert r.json()["status"] == "erstantwort_gesendet"
+    assert len(client.get(f"/reservationsanfragen/{a['id']}/mails").json()) == 3
+
+
+def test_freie_antwort_betreff_aus_letzter_gastmail():
+    assert am.antwort_betreff("AW: Re: AW: Hunde erlaubt?", "de") == "Re: Hunde erlaubt?"
+    assert am.antwort_betreff(None, "fr") == "Votre demande – Panorama-Camping Aeschi"
+
+
+def test_antwort_mit_anzahlung_braucht_betrag(client):
+    a = _anfrage(client)
+    assert client.post(f"/reservationsanfragen/{a['id']}/antwort/vorbereiten", json={"sprache": "de"}).status_code == 422
+
+
+def test_vorlagen_nach_typ(client):
+    frei = client.get("/email-vorlagen?typ=freie_antwort").json()
+    assert [v["sprache"] for v in frei] == ["de", "fr", "it", "en"]
+    assert {t["typ"] for t in client.get("/email-vorlagen/typen").json()} == {"erstantwort_zahlungsinfo", "freie_antwort"}
+    v = client.post("/email-vorlagen/vorschau", json={"betreff": frei[0]["betreff"], "koerper": frei[0]["koerper"],
+                                                       "sprache": "de", "typ": "freie_antwort"}).json()
+    assert v["betreff"] == "Re: Sind Hunde erlaubt?" and v["unbekannte_platzhalter"] == []

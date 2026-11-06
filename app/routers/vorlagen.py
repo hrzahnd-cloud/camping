@@ -35,6 +35,7 @@ class VorschauAnfrage(BaseModel):
     betreff: str
     koerper: str
     sprache: str = "de"
+    typ: str = am.TYP_ERSTANTWORT
 
 
 class Vorschau(BaseModel):
@@ -83,11 +84,18 @@ def vorlage_speichern(vorlage_id: uuid.UUID, daten: VorlageAenderung, db: Sessio
 def vorlage_vorschau(daten: VorschauAnfrage, db: Session = Depends(get_db)):
     """Vorschau mit einer erfundenen Anfrage und den aktuellen Betriebsangaben."""
     betrieb = am.betriebsangaben(db)
-    werte = am.werte_fuer(am.beispiel_anfrage(), daten.sprache, Decimal("120.00"), date(2027, 3, 31), betrieb)
+    mit_anzahlung = daten.typ == am.TYP_ERSTANTWORT
+    werte = am.werte_fuer(am.beispiel_anfrage(), daten.sprache, Decimal("120.00") if mit_anzahlung else None,
+                          date(2027, 3, 31) if mit_anzahlung else None, betrieb, "Sind Hunde erlaubt?")
     betreff, u1 = am.ersetze(daten.betreff, werte)
     text, u2 = am.ersetze(daten.koerper, werte)
     return Vorschau(betreff=betreff, text=text, unbekannte_platzhalter=sorted(set(u1 + u2)),
-                    warnungen=am.warnungen_betrieb(betrieb))
+                    warnungen=am.warnungen_betrieb(betrieb, daten.typ))
+
+
+@router.get("/email-vorlagen/typen")
+def vorlagentypen() -> list[dict]:
+    return [{"typ": t, "bezeichnung": b} for t, b in am.VORLAGENTYPEN.items()]
 
 
 @router.get("/einstellungen/betrieb", response_model=list[BetriebFeldOut])

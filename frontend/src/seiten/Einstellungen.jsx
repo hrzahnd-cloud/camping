@@ -29,7 +29,17 @@ export default function Einstellungen({ module, onGeaendert }) {
   );
 }
 
+const VORLAGENTYPEN = [
+  { typ: "erstantwort_zahlungsinfo", name: "Antwort mit Anzahlung",
+    hinweis: "Antwort auf eine Reservationsanfrage mit den Zahlungsangaben.",
+    vorschau: "Mit einer erfundenen Anfrage, Anzahlung CHF 120.00 und Frist 31.3.2027." },
+  { typ: "freie_antwort", name: "Freie Antwort",
+    hinweis: "Rahmen für Antworten auf Fragen des Gastes, ohne Anzahlung: Anrede, Platz für Ihren Text, Gruss und Signatur. Der eigene Text kommt nach der ersten Leerzeile.",
+    vorschau: "Mit einer erfundenen Anfrage und der Gastfrage «Sind Hunde erlaubt?» als letztem Betreff." },
+];
+
 function Vorlagen() {
+  const [typ, setTyp] = useState(VORLAGENTYPEN[0].typ);
   const [vorlagen, setVorlagen] = useState(null);
   const [platzhalter, setPlatzhalter] = useState([]);
   const [sprache, setSprache] = useState("de");
@@ -39,9 +49,13 @@ function Vorlagen() {
   const textfeld = useRef(null);
 
   useEffect(() => {
-    api.get("/email-vorlagen").then(setVorlagen).catch((e) => setMeldung({ art: "fehler", text: e.message }));
     api.get("/email-vorlagen/platzhalter").then(setPlatzhalter).catch(() => {});
   }, []);
+  useEffect(() => {
+    setVorlagen(null); setEntwurf(null); setVorschau(null);
+    api.get(`/email-vorlagen?typ=${typ}`).then(setVorlagen).catch((e) => setMeldung({ art: "fehler", text: e.message }));
+  }, [typ]);
+  const art = VORLAGENTYPEN.find((t) => t.typ === typ);
 
   const vorlage = vorlagen?.find((v) => v.sprache === sprache);
   // nur beim Wechsel der Sprache neu laden, nicht nach dem Speichern
@@ -53,10 +67,10 @@ function Vorlagen() {
   useEffect(() => {
     if (!entwurf) return undefined;
     const t = setTimeout(() => {
-      api.post("/email-vorlagen/vorschau", { ...entwurf, sprache }).then(setVorschau).catch(() => {});
+      api.post("/email-vorlagen/vorschau", { ...entwurf, sprache, typ }).then(setVorschau).catch(() => {});
     }, 350);
     return () => clearTimeout(t);
-  }, [entwurf, sprache]);
+  }, [entwurf, sprache, typ]);
 
   const geaendert = vorlage && entwurf && (vorlage.betreff !== entwurf.betreff || vorlage.koerper !== entwurf.koerper);
 
@@ -74,23 +88,28 @@ function Vorlagen() {
     try {
       const neu = await api.put(`/email-vorlagen/${vorlage.id}`, { ...entwurf, aktiv: true });
       setVorlagen(vorlagen.map((v) => (v.id === neu.id ? neu : v)));
-      setMeldung({ art: "ok", text: `Vorlage ${SPRACHEN[sprache]} gespeichert.` });
+      setMeldung({ art: "ok", text: `Vorlage «${art.name}» ${SPRACHEN[sprache]} gespeichert.` });
     } catch (e) { setMeldung({ art: "fehler", text: e.message }); }
   };
 
-  if (!vorlagen) return <p className="leer">Wird geladen …</p>;
   return (
     <section className="vorlagen">
+      <div className="umschalter" role="group" aria-label="Antwortart">
+        {VORLAGENTYPEN.map((t) => (
+          <button key={t.typ} aria-pressed={typ === t.typ} onClick={() => setTyp(t.typ)}>{t.name}</button>
+        ))}
+      </div>
       <p className="hinweis">
-        Antwort auf eine Reservationsanfrage mit den Zahlungsangaben. Pro Sprache eine Vorlage. Platzhalter in
-        doppelten geschweiften Klammern werden beim Vorbereiten der Antwort durch die Angaben der Anfrage ersetzt.
+        {art.hinweis} Pro Sprache eine Vorlage. Platzhalter in doppelten geschweiften Klammern werden beim Vorbereiten
+        der Antwort durch die Angaben der Anfrage ersetzt.
       </p>
-      <div className="umschalter" role="group" aria-label="Sprache">
+      {!vorlagen && <p className="leer">Wird geladen …</p>}
+      {vorlagen && <div className="umschalter" role="group" aria-label="Sprache">
         {vorlagen.map((v) => (
           <button key={v.sprache} aria-pressed={sprache === v.sprache} onClick={() => setSprache(v.sprache)}>{SPRACHEN[v.sprache]}</button>
         ))}
-      </div>
-      {entwurf && (
+      </div>}
+      {vorlagen && entwurf && (
         <div className="vorlagen-raster">
           <div className="formular">
             <div className="feld">
@@ -99,7 +118,7 @@ function Vorlagen() {
             </div>
             <div className="feld">
               <label htmlFor="vorlage-text">Text</label>
-              <textarea id="vorlage-text" ref={textfeld} rows="24" value={entwurf.koerper} onChange={(e) => setEntwurf({ ...entwurf, koerper: e.target.value })} />
+              <textarea id="vorlage-text" ref={textfeld} rows={typ === "freie_antwort" ? 10 : 24} value={entwurf.koerper} onChange={(e) => setEntwurf({ ...entwurf, koerper: e.target.value })} />
             </div>
             {meldung && <p className={`meldung ${meldung.art}`} role="status">{meldung.text}</p>}
             <div className="aktionen">
@@ -117,7 +136,7 @@ function Vorlagen() {
           </div>
           <div className="vorschau" aria-live="polite">
             <h2>Vorschau</h2>
-            <p className="hinweis">Mit einer erfundenen Anfrage, Anzahlung CHF 120.00 und Frist 31.3.2027.</p>
+            <p className="hinweis">{art.vorschau}</p>
             {vorschau?.warnungen?.map((w) => <p key={w} className="meldung warnung">{w}. Unter «Betriebsangaben» ergänzen.</p>)}
             {vorschau?.unbekannte_platzhalter?.length > 0 && (
               <p className="meldung fehler">Unbekannte Platzhalter: {vorschau.unbekannte_platzhalter.map((u) => `{{${u}}}`).join(", ")}</p>

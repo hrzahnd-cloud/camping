@@ -23,6 +23,13 @@ from app.models.kommunikation import EmailVorlage
 from app.models.reservation import Reservationsanfrage
 
 TYP_ERSTANTWORT = "erstantwort_zahlungsinfo"
+TYP_FREI = "freie_antwort"
+VORLAGENTYPEN = {
+    TYP_ERSTANTWORT: "Antwort mit Anzahlung",
+    TYP_FREI: "Freie Antwort",
+}
+"""Freie Antwort: nur Anrede, eigener Text und Signatur – für Rückfragen
+(«Sind Hunde erlaubt?») und das Hin und Her vor der eigentlichen Reservation."""
 SPRACHEN = ("de", "fr", "it", "en")
 
 # --- Betriebsangaben ------------------------------------------------------------
@@ -162,16 +169,24 @@ Kind regards
 }
 
 
+STARTVORLAGEN_FREI = {
+    "de": ("{{antwortBetreff}}", "Guten Tag {{gastName}}\n\nFreundliche Grüsse\n{{signatur}}"),
+    "fr": ("{{antwortBetreff}}", "Bonjour {{gastName}},\n\nMeilleures salutations\n{{signatur}}"),
+    "it": ("{{antwortBetreff}}", "Buongiorno {{gastName}},\n\nCordiali saluti\n{{signatur}}"),
+    "en": ("{{antwortBetreff}}", "Dear {{gastName}},\n\nKind regards\n{{signatur}}"),
+}
+_STARTVORLAGEN_JE_TYP = {TYP_ERSTANTWORT: STARTVORLAGEN, TYP_FREI: STARTVORLAGEN_FREI}
+
+
 def startvorlagen_ergaenzen(db: Session) -> int:
     """Legt fehlende Vorlagen an (idempotent). Gibt die Anzahl neuer Vorlagen zurück."""
-    vorhanden = {
-        v.sprache for v in db.execute(select(EmailVorlage).where(EmailVorlage.typ == TYP_ERSTANTWORT)).scalars()
-    }
+    vorhanden = {(v.typ, v.sprache) for v in db.execute(select(EmailVorlage)).scalars()}
     neu = 0
-    for sprache, (betreff, koerper) in STARTVORLAGEN.items():
-        if sprache not in vorhanden:
-            db.add(EmailVorlage(typ=TYP_ERSTANTWORT, sprache=sprache, betreff=betreff, koerper=koerper, aktiv=True))
-            neu += 1
+    for typ, vorlagen in _STARTVORLAGEN_JE_TYP.items():
+        for sprache, (betreff, koerper) in vorlagen.items():
+            if (typ, sprache) not in vorhanden:
+                db.add(EmailVorlage(typ=typ, sprache=sprache, betreff=betreff, koerper=koerper, aktiv=True))
+                neu += 1
     if neu:
         db.commit()
     return neu
@@ -191,6 +206,7 @@ PLATZHALTER = {
     "betrag": "Anzahlung, beim Vorbereiten von Hand eingegeben (z.B. CHF 120.00)",
     "zahlungsfrist": "Zahlungsfrist, falls beim Vorbereiten angegeben (sonst leer)",
     "zahlungsinfo": "Ganzer Absatz zur Anzahlung: Betrag, IBAN/BIC, Frist und TWINT, soweit vorhanden",
+    "antwortBetreff": "Betreff einer Antwort: «Re: …» auf die letzte Mail des Gastes, sonst «Ihre Anfrage – Panorama-Camping Aeschi»",
     "signatur": "Signatur aus den Betriebsangaben",
     "infoblock": "Infoblock aus den Betriebsangaben",
 }
@@ -290,8 +306,25 @@ def ersetze(text: str, werte: dict[str, str]) -> tuple[str, list[str]]:
     return ergebnis, unbekannt
 
 
-def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal, frist: date | None,
-               betrieb: dict[str, str]) -> dict[str, str]:
+_BETREFF_STANDARD = {
+    "de": "Ihre Anfrage – Panorama-Camping Aeschi",
+    "fr": "Votre demande – Panorama-Camping Aeschi",
+    "it": "La sua richiesta – Panorama-Camping Aeschi",
+    "en": "Your enquiry – Panorama-Camping Aeschi",
+}
+_ANTWORT_PRAEFIX = re.compile(r"^\s*(?:(?:re|aw|antw|wg|fw|fwd|sv|r|rif|tr)\s*(?:\[\d+\])?\s*:\s*)+", re.IGNORECASE)
+
+
+def antwort_betreff(letzter_betreff: str | None, sprache: str) -> str:
+    """«Re: <Betreff der letzten Gastmail>» ohne gestapelte Re:/AW:, sonst ein Standardbetreff."""
+    rest = _ANTWORT_PRAEFIX.sub("", letzter_betreff or "").strip()
+    if not rest or rest.lower() in ("eingefügter mailtext",):
+        return _BETREFF_STANDARD.get(sprache, _BETREFF_STANDARD["de"])
+    return f"Re: {rest}"
+
+
+def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal | None, frist: date | None,
+               betrieb: dict[str, str], letzter_betreff: str | None = None) -> dict[str, str]:
     naechte = (anfrage.gewuenscht_bis - anfrage.gewuenscht_von).days if anfrage.gewuenscht_von and anfrage.gewuenscht_bis else ""
     return {
         "gastName": anfrage.gast_name,
@@ -302,9 +335,10 @@ def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal, fris
         "personen": personen_text(anfrage.anzahl_erwachsene or 0, anfrage.anzahl_kinder or 0, sprache),
         "erwachsene": str(anfrage.anzahl_erwachsene or 0),
         "kinder": str(anfrage.anzahl_kinder or 0),
-        "betrag": betrag_text(betrag),
+        "betrag": betrag_text(betrag) if betrag is not None else "",
         "zahlungsfrist": datum_text(frist, sprache),
-        "zahlungsinfo": zahlungsinfo(sprache, betrag, frist, betrieb),
+        "zahlungsinfo": zahlungsinfo(sprache, betrag, frist, betrieb) if betrag is not None else "",
+        "antwortBetreff": antwort_betreff(letzter_betreff, sprache),
         "signatur": betrieb.get("signatur", ""),
         "infoblock": betrieb.get("infoblock", ""),
     }
@@ -319,6 +353,45 @@ def beispiel_anfrage() -> Reservationsanfrage:
     )
 
 
-def warnungen_betrieb(betrieb: dict[str, str]) -> list[str]:
-    fehlend = [f.bezeichnung for f in BETRIEBSFELDER if f.schluessel in ("signatur", "iban") and not betrieb.get(f.schluessel)]
+def warnungen_betrieb(betrieb: dict[str, str], typ: str = TYP_ERSTANTWORT) -> list[str]:
+    noetig = ("signatur", "iban") if typ == TYP_ERSTANTWORT else ("signatur",)
+    fehlend = [f.bezeichnung for f in BETRIEBSFELDER if f.schluessel in noetig and not betrieb.get(f.schluessel)]
     return [f"In den Einstellungen fehlt: {', '.join(fehlend)}"] if fehlend else []
+
+
+_ZAHLUNGSHINWEIS = re.compile(r"\bIBAN\b|anzahlung|deposit|acompte|acconto|caparra", re.IGNORECASE)
+
+
+def ist_zahlungsantwort(text: str) -> bool:
+    """Erkennt in einer ausserhalb des Tools geschriebenen Antwort die Aufforderung zur Anzahlung."""
+    return bool(_ZAHLUNGSHINWEIS.search(text or ""))
+
+
+def status_nach_antwort(anfrage: Reservationsanfrage, mit_anzahlung: bool) -> None:
+    """
+    Status nach einer gesendeten Antwort, solange die Anfrage noch in der Prüfung
+    bzw. in Abklärung ist: mit Anzahlung -> «Antwort gesendet», sonst (freie
+    Antwort, Rückfrage) -> «In Abklärung». Spätere Status bleiben unverändert.
+    """
+    from app.services.anfrage_pruefung import PRUEF_STATUS
+
+    if anfrage.status not in PRUEF_STATUS | {"in_abklaerung"}:
+        return
+    if mit_anzahlung and anfrage.vollstaendig:
+        anfrage.status = "erstantwort_gesendet"
+    elif not mit_anzahlung:
+        anfrage.status = "in_abklaerung"
+
+
+def letzter_gast_betreff(db: Session, anfrage: Reservationsanfrage) -> str | None:
+    """Betreff der letzten Mail des Gastes (Postfach), sonst aus dem Originaltext der Anfrage."""
+    from app.models.kommunikation import MailNachricht
+
+    n = db.execute(
+        select(MailNachricht).where(MailNachricht.reservationsanfrage_id == anfrage.id, MailNachricht.richtung == "eingang")
+        .order_by(MailNachricht.datum.desc())
+    ).scalars().first()
+    if n and n.betreff:
+        return n.betreff
+    erste = (anfrage.rohtext or "").split("\n", 1)[0]
+    return erste[len("Betreff:"):].strip() if erste.startswith("Betreff:") else None

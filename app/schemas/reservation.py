@@ -10,7 +10,7 @@ StellplatzTyp = Literal["zeltwiese", "wohnwagen", "camper", "zwaergli", "spycher
 
 AnfrageStatus = Literal[
     "neu", "unvollstaendig", "geprueft_vollstaendig", "erstantwort_gesendet",
-    "zahlung_ausstehend", "bezahlt_akzeptiert", "abgelehnt", "storniert",
+    "zahlung_ausstehend", "bezahlt_akzeptiert", "abgelehnt", "storniert", "in_abklaerung",
 ]
 
 

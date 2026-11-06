@@ -35,7 +35,7 @@ from app.models.einstellungen import AppEinstellung
 from app.models.kommunikation import EmailVersand, MailNachricht
 from app.models.reservation import Reservationsanfrage
 from app.services import mail_import as mi
-from app.services.anfrage_pruefung import PRUEF_STATUS
+from app.services.antwortmail import ist_zahlungsantwort, status_nach_antwort
 
 MAX_TEXT = 20000
 
@@ -323,8 +323,8 @@ def verarbeite_mail(db: Session, raw: bytes | EmailMessage, settings: Settings) 
         if anfrage and _schon_im_tool_protokolliert(db, anfrage, mail):
             return "duplikat", anfrage
         _speichern(db, mail, kennung, "ausgang", anfrage, True)
-        if anfrage and anfrage.vollstaendig and anfrage.status in PRUEF_STATUS:
-            anfrage.status = "erstantwort_gesendet"
+        if anfrage:
+            status_nach_antwort(anfrage, ist_zahlungsantwort(mail.text))
         db.commit()
         return ("antwort", anfrage) if anfrage else ("nicht_zugeordnet", None)
 

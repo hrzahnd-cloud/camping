@@ -33,11 +33,22 @@ Thunderbird, auch als Anhang). Mails von eigenen Adressen (`MAIL_EIGENE_ADRESSEN
 gelten als Antwort und werden der Anfrage zugeordnet; Antworten von Gästen («Re:/AW:» oder
 Mail-Verweise) ebenfalls und erscheinen als «Neue Mail». Details: `app/services/mailverlauf.py`.
 
-**Antwortmails:** In einer vollständigen Reservation erstellt «Antwort vorbereiten» den Text aus
-der Vorlage in der Sprache des Gastes. Die Anzahlung wird von Hand eingegeben, eine Zahlungsfrist
-ist optional. Der Text lässt sich anpassen, kopieren bzw. im Mailprogramm öffnen; «Als gesendet
-markieren» protokolliert ihn und setzt den Status. Sobald SMTP eingerichtet ist, kann die App
-selbst versenden. Signatur, IBAN usw. liegen in der Datenbank, nicht im (öffentlichen) Code.
+**Antwortmails:** Zwei Antwortarten, je mit Vorlage in vier Sprachen (Einstellungen ›
+Antwortvorlagen):
+
+- «Antwort mit Anzahlung» (nur bei vollständiger Reservation): Text mit Infoblock und
+  Zahlungsangaben. Die Anzahlung wird von Hand eingegeben, eine Zahlungsfrist ist optional.
+  Status danach «Antwort gesendet».
+- «Freie Antwort» (immer möglich, auch bei fehlenden Angaben): nur Anrede, eigener Text und
+  Signatur, Betreff «Re: …» auf die letzte Mail des Gastes. Für Rückfragen wie «Sind Hunde
+  erlaubt?». Status danach «In Abklärung» (Ablage «Warten auf Gast»); ein späterer Status wie
+  «Antwort gesendet» wird nicht zurückgesetzt.
+
+Der Text lässt sich anpassen, kopieren bzw. im Mailprogramm öffnen; «Als gesendet markieren»
+speichert ihn im Mailverlauf und setzt den Status. Eigene Antworten, die per BCC/Weiterleitung
+ins Tool-Postfach kommen, gelten als «Antwort mit Anzahlung», wenn sie IBAN oder Anzahlung
+erwähnen, sonst als freie Antwort. Sobald SMTP eingerichtet ist, kann die App selbst versenden.
+Signatur, IBAN usw. liegen in der Datenbank, nicht im (öffentlichen) Code.
 
 Die Zuteilung einzelner Stellplätze erfolgt ausserhalb des Tools; die Belegung zeigt deshalb
 Reservationen je Stellplatz-Typ. Eine akzeptierte Reservation bleibt eine Reservation mit

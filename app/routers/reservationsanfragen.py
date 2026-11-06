@@ -10,6 +10,7 @@ Erstantwort-Versand (Versand ist laut Konzept immer durch eine Person
 ausgelöst).
 """
 import uuid
+from typing import Literal
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -206,18 +207,23 @@ def zahlung_bestaetigen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
 # --- Antwort mit Zahlungsinformationen (Konzept 10.2) ------------------------------
 
 class AntwortVorbereiten(BaseModel):
+    typ: Literal["erstantwort_zahlungsinfo", "freie_antwort"] = "erstantwort_zahlungsinfo"
     sprache: str = Field(pattern="^(de|fr|it|en)$")
-    betrag: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+    betrag: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    """Pflicht bei der Antwort mit Anzahlung, bei der freien Antwort ohne Bedeutung."""
     zahlungsfrist: date | None = None
 
 
 class AntwortEntwurf(BaseModel):
     vorlage_id: uuid.UUID
+    typ: str
     sprache: str
     empfaenger: str
     betreff: str
     text: str
     warnungen: list[str]
+    einfuege_position: int | None = None
+    """Freie Antwort: Stelle nach der Anrede, an der der eigene Text beginnt."""
 
 
 class AntwortGesendet(BaseModel):
@@ -250,43 +256,65 @@ def _vollstaendige_anfrage(db: Session, anfrage_id: uuid.UUID) -> Reservationsan
     return anfrage
 
 
+def _anfrage(db: Session, anfrage_id: uuid.UUID) -> Reservationsanfrage:
+    anfrage = db.get(Reservationsanfrage, anfrage_id)
+    if not anfrage:
+        raise HTTPException(404, "Reservationsanfrage nicht gefunden")
+    return anfrage
+
+
 @router.post("/{anfrage_id}/antwort/vorbereiten", response_model=AntwortEntwurf)
 def antwort_vorbereiten(anfrage_id: uuid.UUID, daten: AntwortVorbereiten, db: Session = Depends(get_db)):
-    """Füllt die Vorlage der gewählten Sprache aus. Es wird noch nichts gespeichert oder verschickt."""
-    anfrage = _vollstaendige_anfrage(db, anfrage_id)
+    """
+    Füllt die Vorlage der gewählten Art und Sprache aus. Es wird noch nichts
+    gespeichert oder verschickt. Die Antwort mit Anzahlung braucht eine
+    vollständige Anfrage und einen Betrag; die freie Antwort geht immer.
+    """
+    mit_anzahlung = daten.typ == am.TYP_ERSTANTWORT
+    anfrage = _vollstaendige_anfrage(db, anfrage_id) if mit_anzahlung else _anfrage(db, anfrage_id)
+    if mit_anzahlung and daten.betrag is None:
+        raise HTTPException(422, "Bitte die Anzahlung angeben")
     am.startvorlagen_ergaenzen(db)
     vorlage = db.execute(
-        select(EmailVorlage).where(EmailVorlage.typ == am.TYP_ERSTANTWORT, EmailVorlage.sprache == daten.sprache)
+        select(EmailVorlage).where(EmailVorlage.typ == daten.typ, EmailVorlage.sprache == daten.sprache)
     ).scalar_one()
     betrieb = am.betriebsangaben(db)
-    werte = am.werte_fuer(anfrage, daten.sprache, daten.betrag, daten.zahlungsfrist, betrieb)
+    werte = am.werte_fuer(anfrage, daten.sprache, daten.betrag if mit_anzahlung else None,
+                          daten.zahlungsfrist, betrieb, am.letzter_gast_betreff(db, anfrage))
     betreff, u1 = am.ersetze(vorlage.betreff, werte)
     text, u2 = am.ersetze(vorlage.koerper, werte)
-    warnungen = am.warnungen_betrieb(betrieb)
+    warnungen = am.warnungen_betrieb(betrieb, daten.typ)
     if u1 or u2:
         warnungen.append("Unbekannte Platzhalter in der Vorlage: " + ", ".join(sorted(set(u1 + u2))))
-    return AntwortEntwurf(vorlage_id=vorlage.id, sprache=daten.sprache, empfaenger=anfrage.gast_email,
-                          betreff=betreff, text=text, warnungen=warnungen)
+    position = None
+    if not mit_anzahlung:
+        absatz = text.find("\n\n")
+        position = absatz + 2 if absatz >= 0 else len(text)
+    return AntwortEntwurf(vorlage_id=vorlage.id, typ=daten.typ, sprache=daten.sprache, empfaenger=anfrage.gast_email,
+                          betreff=betreff, text=text, warnungen=warnungen, einfuege_position=position)
 
 
 @router.post("/{anfrage_id}/antwort/gesendet", response_model=ReservationsanfrageDetail)
 def antwort_als_gesendet_markieren(anfrage_id: uuid.UUID, daten: AntwortGesendet, db: Session = Depends(get_db)):
     """
     Hält fest, dass die Antwort (aus dem eigenen Mailprogramm) verschickt wurde:
-    der endgültige Text wird protokolliert, der Status wechselt auf
-    "Antwort gesendet". Sobald SMTP eingerichtet ist, verschickt die App selbst.
+    der endgültige Text wird protokolliert. Status: Antwort mit Anzahlung ->
+    "Antwort gesendet", freie Antwort -> "In Abklärung" (siehe
+    antwortmail.status_nach_antwort). Sobald SMTP eingerichtet ist, verschickt
+    die App selbst.
     """
-    anfrage = _vollstaendige_anfrage(db, anfrage_id)
-    if not db.get(EmailVorlage, daten.vorlage_id):
+    vorlage = db.get(EmailVorlage, daten.vorlage_id)
+    if not vorlage:
         raise HTTPException(400, "Vorlage nicht gefunden")
+    mit_anzahlung = vorlage.typ == am.TYP_ERSTANTWORT
+    anfrage = _vollstaendige_anfrage(db, anfrage_id) if mit_anzahlung else _anfrage(db, anfrage_id)
     db.add(EmailVersand(
         bezug_typ="reservationsanfrage", bezug_id=anfrage.id, vorlage_id=daten.vorlage_id,
         gesendet_von="Oberfläche (ohne Login)", empfaenger=anfrage.gast_email,
         betreff_final=daten.betreff, koerper_final=daten.text, status="gesendet",
         gesendet_am=datetime.now(timezone.utc),
     ))
-    if anfrage.status in ("neu", "unvollstaendig", "geprueft_vollstaendig"):
-        anfrage.status = "erstantwort_gesendet"
+    am.status_nach_antwort(anfrage, mit_anzahlung)
     db.commit()
     db.refresh(anfrage)
     return anfrage

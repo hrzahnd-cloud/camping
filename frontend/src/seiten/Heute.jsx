@@ -4,7 +4,7 @@ import { ausIso, datumKurz, fehlendText, heuteIso, isoDatum, naechte, personen, 
 import { Panorama, TYP_STIL, TypMarke } from "../typen.jsx";
 import { StatusMarke } from "./Reservationen.jsx";
 
-const AKTIV = new Set(["neu", "unvollstaendig", "geprueft_vollstaendig", "erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert"]);
+const AKTIV = new Set(["neu", "unvollstaendig", "geprueft_vollstaendig", "in_abklaerung", "erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert"]);
 const ZU_BEARBEITEN = new Set(["neu", "unvollstaendig", "geprueft_vollstaendig"]);
 const LANG = new Intl.DateTimeFormat("de-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 const WOCHENTAG = new Intl.DateTimeFormat("de-CH", { weekday: "short" });

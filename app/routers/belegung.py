@@ -23,7 +23,7 @@ router = APIRouter(prefix="/belegung", tags=["Belegung"])
 
 TYPEN = ("zeltwiese", "wohnwagen", "camper", "zwaergli", "spycher")
 AKZEPTIERT = {"bezahlt_akzeptiert"}
-OFFEN = {"neu", "unvollstaendig", "geprueft_vollstaendig", "erstantwort_gesendet", "zahlung_ausstehend"}
+OFFEN = {"neu", "unvollstaendig", "geprueft_vollstaendig", "in_abklaerung", "erstantwort_gesendet", "zahlung_ausstehend"}
 MAX_TAGE = 400
 
 

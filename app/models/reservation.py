@@ -55,8 +55,9 @@ class Reservationsanfrage(Base, IDMixin, TimestampMixin):
     """Kommagetrennte Liste fehlender Pflichtfelder, falls unvollständig."""
 
     status: Mapped[str] = mapped_column(String(30), default="neu")
-    """neu | unvollstaendig | geprueft_vollstaendig | erstantwort_gesendet |
-       zahlung_ausstehend | bezahlt_akzeptiert | abgelehnt | storniert"""
+    """neu | unvollstaendig | geprueft_vollstaendig | in_abklaerung (freie Antwort/
+       Rückfrage gesendet) | erstantwort_gesendet | zahlung_ausstehend |
+       bezahlt_akzeptiert | abgelehnt | storniert"""
 
     newsletter_einwilligung: Mapped[bool] = mapped_column(Boolean, default=False)
     """Separate Opt-in-Angabe, NICHT vorangehakt (siehe Konzept Abschnitt 11.1)."""
