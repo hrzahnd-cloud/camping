@@ -23,6 +23,7 @@ from app.routers import (
     artikel,
     auswertungen,
     belegung,
+    aufenthalte,
     buchungen,
     einstellungen,
     feratel,
@@ -92,6 +93,7 @@ app.add_middleware(
 
 app.include_router(gaeste.router)
 app.include_router(buchungen.router)
+app.include_router(aufenthalte.router)
 app.include_router(reservationsanfragen.router)
 app.include_router(artikel.router)
 app.include_router(rechnungen.router)

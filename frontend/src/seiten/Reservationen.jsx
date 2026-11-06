@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardPaste, Copy, Mail, MessageSquare, Plus, Search } from "lucide-react";
 import { api } from "../api.js";
 import { TypMarke } from "../typen.jsx";
+import { HoheBelegung } from "./Belegung.jsx";
 import {
   QUELLEN, SPRACHEN, STATUS, TYPEN, datumVoll, fehlendText, naechte, personen, personenLang, statusName, zeitraum,
 } from "../format.js";
@@ -9,8 +10,8 @@ import {
 const ABLAGEN = [
   { code: "offen", name: "Zu bearbeiten", status: ["neu", "unvollstaendig", "geprueft_vollstaendig"] },
   { code: "laufend", name: "Warten auf Gast", status: ["in_abklaerung", "erstantwort_gesendet", "zahlung_ausstehend"] },
-  { code: "akzeptiert", name: "Akzeptiert", status: ["bezahlt_akzeptiert"] },
-  { code: "erledigt", name: "Abgelehnt / storniert", status: ["abgelehnt", "storniert"] },
+  { code: "akzeptiert", name: "Akzeptiert", status: ["bezahlt_akzeptiert", "angereist"] },
+  { code: "erledigt", name: "Abgelehnt / storniert", status: ["abgelehnt", "storniert", "nicht_erschienen"] },
   { code: "alle", name: "Alle", status: null },
 ];
 
@@ -30,6 +31,8 @@ const SCHRITTE = {
   erstantwort_gesendet: [["zahlung_ausstehend", "Wartet auf Zahlung", "neben"], [AKZEPTIEREN, "Zahlung erhalten, akzeptieren", "haupt"], ["abgelehnt", "Ablehnen", "leise"]],
   zahlung_ausstehend: [[AKZEPTIEREN, "Zahlung erhalten, akzeptieren", "haupt"], ["storniert", "Stornieren", "leise"]],
   bezahlt_akzeptiert: [["storniert", "Stornieren", "leise"]],
+  angereist: [],
+  nicht_erschienen: [["bezahlt_akzeptiert", "Zurück auf «Akzeptiert»", "neben"]],
   abgelehnt: [["neu", "Wieder öffnen", "neben"]],
   storniert: [["neu", "Wieder öffnen", "neben"]],
 };
@@ -49,9 +52,11 @@ export function StatusMarke({ status }) {
 
 export default function Reservationen() {
   const [anfragen, setAnfragen] = useState(null);
-  const [ablage, setAblage] = useState("offen");
+  // #/reservationen?id=… (z.B. aus der Belegung): Anfrage direkt öffnen
+  const startId = new URLSearchParams(window.location.hash.split("?")[1] || "").get("id");
+  const [ablage, setAblage] = useState(startId ? "alle" : "offen");
   const [suche, setSuche] = useState("");
-  const [auswahl, setAuswahl] = useState(null); // id | "neu" | "text" | null
+  const [auswahl, setAuswahl] = useState(startId); // id | "neu" | "text" | null
   const [fehler, setFehler] = useState(null);
 
   const laden = useCallback(() => {
@@ -377,6 +382,7 @@ function Akzeptieren({ anfrage, onAkzeptiert, onAbbrechen }) {
           </>
         )}
       </div>
+      {anfrage.hohe_belegung?.length > 0 && <HoheBelegung liste={anfrage.hohe_belegung} />}
       {betrag > 0 && anfrage.anzahlung_verlangt && Math.abs(betrag - Number(anfrage.anzahlung_verlangt)) >= 0.005 && (
         <p className="betrag-hinweis">
           {chf(Math.abs(betrag - Number(anfrage.anzahlung_verlangt)))} {betrag < Number(anfrage.anzahlung_verlangt) ? "weniger" : "mehr"} als
@@ -488,6 +494,10 @@ function Detail({ id, onGeaendert }) {
         {anfrage.nummer && <span className="nummer">Nr. {anfrage.nummer}</span>}
         <StatusMarke status={anfrage.status} />
       </header>
+      {anfrage.hohe_belegung?.length > 0 && <HoheBelegung liste={anfrage.hohe_belegung} />}
+      {anfrage.status === "angereist" && (
+        <p className="meldung ok">Angereist – der Aufenthalt ist in der <a href={`#/belegung?tag=${anfrage.gewuenscht_von}&eintrag=${anfrage.id}`}>Belegung</a> erfasst.</p>
+      )}
       {!anfrage.vollstaendig && (
         <p className="meldung warnung">Es fehlt: {fehlendText(anfrage.fehlende_angaben)}. Ergänzen Sie die Angaben über «Bearbeiten».</p>
       )}

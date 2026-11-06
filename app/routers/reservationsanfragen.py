@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.database import get_db
 from app.models.kommunikation import EmailVersand, EmailVorlage, MailNachricht
+from app.models.buchung import Buchung
 from app.models.reservation import Reservationsanfrage, Zahlung
 from app.schemas.reservation import (
     ReservationsanfrageCreate,
@@ -31,6 +32,7 @@ from app.schemas.reservation import (
     StatusAenderung,
 )
 from app.services import antwortmail as am
+from app.services import belegung as bel
 from app.services.anfrage_pruefung import wende_pruefung_an
 from app.services.mail_import import (
     MailImportNichtKonfiguriert,
@@ -144,6 +146,9 @@ def _detail(db: Session, anfrage: Reservationsanfrage) -> ReservationsanfrageDet
         "anzahlung_erhalten": sum((Decimal(z.betrag) for z in zahlungen), Decimal("0")) if zahlungen else None,
         "anzahlung_eingegangen_am": letzte.eingegangen_am.date() if letzte and letzte.eingegangen_am else None,
         "anzahlung_zahlungsart": letzte.zahlungsart if letzte else None,
+        "hohe_belegung": bel.hohe_belegung(db, anfrage),
+        "buchung_id": db.execute(select(Buchung.id).where(Buchung.reservationsanfrage_id == anfrage.id)
+                                 .where(Buchung.status != "storniert")).scalars().first(),
     })
 
 
@@ -183,6 +188,10 @@ def status_setzen(anfrage_id: uuid.UUID, daten: StatusAenderung, db: Session = D
     anfrage = db.get(Reservationsanfrage, anfrage_id)
     if not anfrage:
         raise HTTPException(404, "Reservationsanfrage nicht gefunden")
+    if daten.status == "angereist":
+        raise HTTPException(400, "«Angereist» entsteht beim Check-in in der Belegung")
+    if anfrage.status == "angereist":
+        raise HTTPException(400, "Die Reservation ist angereist – zuerst den Aufenthalt in der Belegung löschen")
     if daten.status in _STATUS_NUR_VOLLSTAENDIG and not anfrage.vollstaendig:
         raise HTTPException(
             400, f"Anfrage ist unvollständig ({anfrage.fehlende_angaben}) – zuerst Angaben ergänzen"
@@ -196,6 +205,44 @@ def status_setzen(anfrage_id: uuid.UUID, daten: StatusAenderung, db: Session = D
     db.commit()
     db.refresh(anfrage)
     return _detail(db, anfrage)
+
+
+@router.post("/{anfrage_id}/nicht-erschienen", response_model=ReservationsanfrageDetail)
+def nicht_erschienen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    Gast ist trotz Reservation nicht angereist: der Platz wird freigegeben.
+    Eine erhaltene Anzahlung bleibt als Zahlung erfasst.
+    """
+    anfrage = _anfrage(db, anfrage_id)
+    if anfrage.status != "bezahlt_akzeptiert":
+        raise HTTPException(400, "Nur akzeptierte Reservationen können als nicht erschienen markiert werden")
+    if anfrage.gewuenscht_von and anfrage.gewuenscht_von > date.today():
+        raise HTTPException(400, "Der Anreisetag ist noch nicht erreicht – stattdessen stornieren")
+    anfrage.status = "nicht_erschienen"
+    db.commit()
+    db.refresh(anfrage)
+    return _detail(db, anfrage)
+
+
+@router.delete("/{anfrage_id}", status_code=204)
+def anfrage_loeschen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    Löscht eine Anfrage endgültig – mit Mailverlauf und erfassten Zahlungen
+    (z.B. Testdaten oder Doppelerfassung). Für Absagen «Stornieren» verwenden.
+    Nicht möglich, wenn bereits ein Aufenthalt erfasst ist.
+    """
+    anfrage = _anfrage(db, anfrage_id)
+    if db.execute(select(Buchung.id).where(Buchung.reservationsanfrage_id == anfrage.id)).first():
+        raise HTTPException(400, "Zu dieser Reservation gibt es einen Aufenthalt – zuerst diesen löschen")
+    for modell, bedingung in (
+        (EmailVersand, (EmailVersand.bezug_typ == "reservationsanfrage") & (EmailVersand.bezug_id == anfrage.id)),
+        (Zahlung, (Zahlung.bezug_typ == "reservationsanfrage") & (Zahlung.bezug_id == anfrage.id)),
+        (MailNachricht, MailNachricht.reservationsanfrage_id == anfrage.id),
+    ):
+        for eintrag in db.execute(select(modell).where(bedingung)).scalars():
+            db.delete(eintrag)
+    db.delete(anfrage)
+    db.commit()
 
 
 class Akzeptieren(BaseModel):

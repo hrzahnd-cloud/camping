@@ -2,7 +2,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import Date, ForeignKey, Integer, String
+from sqlalchemy import Date, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -30,10 +30,23 @@ class Gast(Base, IDMixin, TimestampMixin):
 
 
 class Buchung(Base, IDMixin, TimestampMixin):
-    """Bestätigte Reservierung eines Stellplatzes über einen Zeitraum."""
+    """
+    Aufenthalt auf dem Platz über einen Zeitraum. Entsteht beim Check-in am
+    Anreisetag – aus einer akzeptierten Reservation oder ohne Reservation
+    (z.B. Nebensaison). Die Zuteilung einzelner Stellplätze erfolgt ausserhalb
+    des Tools; `stellplatz_id` ist deshalb optional, massgebend für die
+    Belegung ist `stellplatz_typ` (optional mit Platznummer als Freitext).
+    """
     __tablename__ = "buchung"
 
-    stellplatz_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("stellplatz.id"))
+    stellplatz_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("stellplatz.id"))
+    stellplatz_typ: Mapped[str | None] = mapped_column(String(50))
+    """zeltwiese | wohnwagen | camper | zwaergli | spycher (wie Reservationsanfrage)"""
+    platz: Mapped[str | None] = mapped_column(String(50))
+    """Platznummer/-bezeichnung als Freitext, optional."""
+    anzahl_erwachsene: Mapped[int] = mapped_column(Integer, default=1)
+    anzahl_kinder: Mapped[int] = mapped_column(Integer, default=0)
+    bemerkung: Mapped[str | None] = mapped_column(Text)
     von: Mapped[date] = mapped_column(Date)
     bis: Mapped[date] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(30), default="angefragt")
@@ -44,7 +57,7 @@ class Buchung(Base, IDMixin, TimestampMixin):
     )
     """Herkunft, falls aus einer Reservationsanfrage entstanden (Konzept Abschnitt 10)."""
 
-    stellplatz: Mapped["Stellplatz"] = relationship(back_populates="buchungen")
+    stellplatz: Mapped["Stellplatz | None"] = relationship(back_populates="buchungen")
     hauptgast: Mapped["Gast"] = relationship(foreign_keys=[hauptgast_id])
     aufenthalte: Mapped[list["Aufenthalt"]] = relationship(back_populates="buchung")
     rechnung: Mapped["Rechnung | None"] = relationship(back_populates="buchung", uselist=False)

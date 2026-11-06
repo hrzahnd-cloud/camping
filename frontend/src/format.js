@@ -16,6 +16,8 @@ export const STATUS = {
   erstantwort_gesendet: { name: "Antwort gesendet", ton: "offen" },
   zahlung_ausstehend: { name: "Zahlung ausstehend", ton: "offen" },
   bezahlt_akzeptiert: { name: "Akzeptiert", ton: "ok" },
+  angereist: { name: "Angereist", ton: "ok" },
+  nicht_erschienen: { name: "Nicht erschienen", ton: "aus" },
   abgelehnt: { name: "Abgelehnt", ton: "aus" },
   storniert: { name: "Storniert", ton: "aus" },
 };

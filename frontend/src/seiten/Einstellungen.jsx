@@ -5,6 +5,7 @@ import { SPRACHEN, datumVoll } from "../format.js";
 const BEREICHE = [
   { code: "vorlagen", name: "Antwortvorlagen" },
   { code: "betrieb", name: "Betriebsangaben" },
+  { code: "belegung", name: "Belegung" },
   { code: "mwst", name: "MWST-Sätze" },
   { code: "postfach", name: "Postfach" },
   { code: "module", name: "Module" },
@@ -22,6 +23,7 @@ export default function Einstellungen({ module, onGeaendert }) {
       </div>
       {bereich === "vorlagen" && <Vorlagen />}
       {bereich === "betrieb" && <Betrieb />}
+      {bereich === "belegung" && <BelegungGrenzen />}
       {bereich === "mwst" && <MwstSaetze />}
       {bereich === "postfach" && <Postfach />}
       {bereich === "module" && <Module module={module} onGeaendert={onGeaendert} />}
@@ -396,5 +398,39 @@ function Postfach() {
         ))}
       </ul>
     </section>
+  );
+}
+
+function BelegungGrenzen() {
+  const [werte, setWerte] = useState(null);
+  const [meldung, setMeldung] = useState(null);
+  useEffect(() => { api.get("/belegung/einstellungen").then(setWerte).catch((e) => setMeldung({ art: "fehler", text: e.message })); }, []);
+  const speichern = async (e) => {
+    e.preventDefault(); setMeldung(null);
+    try {
+      setWerte(await api.put("/belegung/einstellungen", {
+        belegung_plaetze: Number(werte.belegung_plaetze), belegung_meldung_ab: Number(werte.belegung_meldung_ab),
+      }));
+      setMeldung({ art: "ok", text: "Gespeichert." });
+    } catch (err) { setMeldung({ art: "fehler", text: err.message }); }
+  };
+  if (!werte) return meldung ? <p className={`meldung ${meldung.art}`}>{meldung.text}</p> : <p className="leer">Wird geladen …</p>;
+  return (
+    <form className="formular" onSubmit={speichern}>
+      <p className="hinweis">
+        Gezählt werden akzeptierte Reservationen und Aufenthalte auf Stellplätzen für Zelt, Wohnwagen und Camper.
+        Zwärgli und Spycher zählen separat. Ab der Meldegrenze erscheint in Reservationen und beim Akzeptieren ein Hinweis.
+      </p>
+      <div className="felder">
+        <div className="feld"><label htmlFor="bel-plaetze">Stellplätze</label>
+          <input id="bel-plaetze" type="number" min="1" max="500" required value={werte.belegung_plaetze}
+            onChange={(e) => setWerte({ ...werte, belegung_plaetze: e.target.value })} /></div>
+        <div className="feld"><label htmlFor="bel-meldung">Meldung ab belegten Plätzen pro Nacht</label>
+          <input id="bel-meldung" type="number" min="1" max={werte.belegung_plaetze} required value={werte.belegung_meldung_ab}
+            onChange={(e) => setWerte({ ...werte, belegung_meldung_ab: e.target.value })} /></div>
+      </div>
+      {meldung && <p className={`meldung ${meldung.art}`} role="status">{meldung.text}</p>}
+      <div className="aktionen"><button className="knopf haupt" type="submit">Speichern</button></div>
+    </form>
   );
 }

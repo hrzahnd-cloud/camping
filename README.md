@@ -65,9 +65,24 @@ ins Tool-Postfach kommen, gelten als «Antwort mit Anzahlung», wenn sie IBAN od
 erwähnen, sonst als freie Antwort. Sobald SMTP eingerichtet ist, kann die App selbst versenden.
 Signatur, IBAN usw. liegen in der Datenbank, nicht im (öffentlichen) Code.
 
-Die Zuteilung einzelner Stellplätze erfolgt ausserhalb des Tools; die Belegung zeigt deshalb
-Reservationen je Stellplatz-Typ. Eine akzeptierte Reservation bleibt eine Reservation mit
-Status «akzeptiert» (es entsteht keine Buchung mit Stellplatz).
+**Belegung:** Die Zuteilung einzelner Stellplätze erfolgt ausserhalb des Tools; die Belegung
+zeigt deshalb Reservationen und Aufenthalte je Stellplatz-Typ. Gezählt werden nur akzeptierte
+Reservationen und Aufenthalte. Zelt, Wohnwagen und Camper zählen gegen die Platzzahl (Standard
+50, Meldung ab 45 belegten Plätzen pro Nacht, beides unter Einstellungen › Belegung), Zwärgli und
+Spycher separat. Die Übersicht zeigt je Nacht die Auslastung, die Zahlen je Typ sowie Anreisen
+und Abreisen; ein Klick öffnet rechts den Tag bzw. den Eintrag, ohne die Seite zu verlassen.
+
+**Check-in, Aufenthalt:** Ab dem Anreisetag lässt sich eine akzeptierte Reservation in der
+Belegung einchecken: Gast (Adresse für Meldeschein/Kurtaxe), Buchung und Aufenthalt entstehen in
+einem Schritt (Platznummer optional als Freitext), die Reservation wird «angereist». Gäste ohne
+Reservation (Nebensaison) über «Check-in ohne Reservation». «Abreise erfassen» gibt den Platz
+frei. Ist ein Gast nicht erschienen, zeigt «Heute» ihn am Morgen danach; «Nicht angereist» gibt
+den Platz frei, eine Anzahlung bleibt erfasst. Stornieren behält die Anfrage, «Endgültig
+löschen» entfernt sie mit Mailverlauf und Zahlungen (z.B. Testdaten).
+
+**Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
+Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
+@example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
 
 **Module:** Buchungen, Artikel & Preise, Rechnungen, Auswertungen, HESTA und Feratel sind im
 Backend vollständig vorhanden und in der Datenbank vorgesehen, aber standardmässig

@@ -431,3 +431,95 @@ a.knopf { text-decoration: none; color: inherit; }
 .anfrage .zeile1 strong { display: inline-flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .karte-detail > header .nummer { font-size: 0.9375rem; }
 .betrag-hinweis { font-size: 0.875rem; color: var(--tinte-leise); }
+
+/* --- Belegung: Übersicht, Auslastung, Schublade (Nov. 2026) --- */
+.belegung-steuerung { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 12px; }
+.knopf.gefahr { background: var(--ziegel); color: #fff; }
+.knopf.gefahr:hover:not(:disabled) { filter: brightness(0.92); }
+button.link { background: none; border: 0; padding: 0; color: var(--see); font: inherit; cursor: pointer; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
+.probe-stufe { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-left: 10px; }
+.probe-stufe.hoch { background: var(--harz-zart); box-shadow: inset 0 0 0 1.5px var(--harz); }
+.probe-stufe.voll { background: var(--ziegel); }
+.belegung-fazit { margin: 0; color: var(--tinte-leise); }
+.belegung-fazit strong { color: var(--tinte); }
+.warnwort { color: var(--harz); font-weight: 600; }
+
+.uebersicht-raster {
+  display: grid; grid-template-columns: 132px repeat(var(--tage), minmax(30px, 1fr));
+  background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius);
+  box-shadow: var(--schatten); overflow-x: auto; padding-bottom: 4px;
+}
+.uebersicht-raster > button { border: 0; background: none; font: inherit; cursor: pointer; padding: 0; color: inherit; }
+.uebersicht-raster > button:focus-visible { outline: 2px solid var(--fokus); outline-offset: -2px; }
+.ue-ecke, .ue-titel { position: sticky; left: 0; z-index: 2; background: var(--papier); }
+.ue-tag { display: grid; justify-items: center; padding: 8px 0 6px; font-size: 0.75rem; color: var(--tinte-leise); border-bottom: 1px solid var(--linie); }
+.ue-tag strong { font-size: 0.9375rem; color: var(--tinte); }
+.ue-tag.wochenende { background: #f6f7f4; }
+.ue-tag.heute strong { background: var(--see); color: #fff; border-radius: 99px; min-width: 1.7em; text-align: center; }
+.uebersicht-raster > .gewaehlt { box-shadow: inset 0 0 0 2px var(--see); }
+.ue-titel { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 12px; font-size: 0.875rem; border-top: 1px solid var(--nebel); box-shadow: inset 4px 0 0 var(--typ, transparent); }
+.ue-titel span { font-size: 0.75rem; color: var(--tinte-leise); }
+.ue-auslastung-titel { display: grid; gap: 0; padding-block: 10px; border-top: 0; }
+.ue-auslastung-titel strong { font-family: var(--titel); font-size: 1.0625rem; }
+.ue-auslastung {
+  margin: 4px 1px; border-radius: 6px !important; min-height: 44px; display: grid; place-items: end center; padding-bottom: 4px !important;
+  background: linear-gradient(to top, color-mix(in srgb, var(--see) 22%, white) calc(var(--anteil) * 100%), var(--nebel) 0) !important;
+}
+.ue-auslastung strong { font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.ue-auslastung.hoch { background: linear-gradient(to top, color-mix(in srgb, var(--harz) 45%, white) calc(var(--anteil) * 100%), var(--harz-zart) 0) !important; }
+.ue-auslastung.hoch strong { color: #6b4410; }
+.ue-auslastung.voll { background: var(--ziegel) !important; }
+.ue-auslastung.voll strong { color: #fff; }
+.ue-zahl { border-top: 1px solid var(--nebel) !important; font-size: 0.875rem; font-variant-numeric: tabular-nums; min-height: 30px; color: var(--tinte); }
+.ue-zahl.belegt { background: color-mix(in srgb, var(--typ) 12%, white) !important; font-weight: 600; }
+.trenner-oben { border-top: 2px solid var(--linie) !important; }
+.ue-klein { font-size: 0.75rem; }
+.ue-bewegung { border-top: 1px solid var(--nebel) !important; font-size: 0.8125rem; min-height: 26px; font-variant-numeric: tabular-nums; }
+.ue-bewegung.an { color: var(--moos) !important; font-weight: 600; }
+.ue-bewegung.ab { color: var(--tinte-leise) !important; }
+
+/* Zeitband kompakt */
+.zeitband.kompakt .zb-balken { min-height: 22px; padding: 1px 6px; font-size: 0.75rem; border: 0; font-family: inherit; cursor: pointer; text-align: left; }
+.zeitband.kompakt .zb-spur { padding: 1px 0; }
+.zeitband.kompakt .zb-summe span { font-size: 0.625rem; }
+.zb-balken.aufenthalt { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--typ) 60%, black); }
+button.zb-tag { border: 0; border-bottom: 1px solid var(--linie); background: none; font: inherit; cursor: pointer; }
+.zb-tag em { font-style: normal; font-size: 0.6875rem; font-variant-numeric: tabular-nums; border-radius: 4px; padding: 0 4px; }
+.zb-tag.stufe-hoch em { background: var(--harz-zart); color: var(--harz); font-weight: 600; }
+.zb-tag.stufe-voll em { background: var(--ziegel); color: #fff; font-weight: 600; }
+
+/* Schublade rechts */
+.schublade-hintergrund { position: fixed; inset: 0; background: rgba(20, 48, 64, 0.18); z-index: 20; }
+.schublade {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100vw); z-index: 21;
+  background: var(--papier); box-shadow: -8px 0 32px rgba(20, 48, 64, 0.18); overflow-y: auto; padding: 20px 20px 32px;
+}
+.schublade .schliessen { position: absolute; top: 14px; right: 14px; }
+.panel { display: grid; gap: 14px; }
+.panel h2 { margin: 0; padding-right: 40px; font-family: var(--titel); font-size: 1.5rem; }
+.panel h3 { margin: 0 0 6px; font-size: 0.9375rem; }
+.panel p { margin: 0; }
+.panel .angaben { grid-template-columns: max-content 1fr; }
+.panel-abschnitt summary { cursor: pointer; font-weight: 600; font-size: 0.9375rem; }
+.panel-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.panel-liste button {
+  width: 100%; text-align: left; border: 1px solid var(--linie); background: var(--papier); border-radius: var(--radius-klein);
+  padding: 8px 10px; display: grid; gap: 2px; cursor: pointer; font: inherit; color: inherit; box-shadow: inset 4px 0 0 var(--typ);
+}
+.panel-liste button:hover { border-color: var(--tinte-leise); }
+.panel-liste .zeile1 { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.panel-liste .zeile2 { font-size: 0.8125rem; color: var(--tinte-leise); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.hinweis-aktion { margin-left: auto; color: var(--see); font-weight: 600; }
+.leer.klein { font-size: 0.875rem; padding: 0; }
+.auslastung-satz { padding: 8px 12px; border-radius: var(--radius-klein); background: var(--nebel); }
+.auslastung-satz.hoch { background: var(--harz-zart); color: #6b4410; }
+.auslastung-satz.voll { background: var(--ziegel-zart); color: var(--ziegel); }
+.link.zurueck { font-size: 0.875rem; text-decoration: none; }
+.bestaetigung { border: 1px solid var(--ziegel); background: var(--ziegel-zart); border-radius: var(--radius-klein); padding: 12px; display: grid; gap: 10px; }
+.formular-schmal .felder.zwei { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 720px) {
+  .uebersicht-raster { grid-template-columns: 96px repeat(var(--tage), minmax(30px, 1fr)); }
+}
+.heute-karte.nicht-angereist { border-color: var(--harz); box-shadow: inset 4px 0 0 var(--harz), var(--schatten); margin-bottom: 16px; }
+.heute-liste li.mit-aktionen { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--nebel); }
+.heute-liste li.mit-aktionen .aktionen { gap: 6px; }

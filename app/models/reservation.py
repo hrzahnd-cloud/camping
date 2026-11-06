@@ -64,7 +64,8 @@ class Reservationsanfrage(Base, IDMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String(30), default="neu")
     """neu | unvollstaendig | geprueft_vollstaendig | in_abklaerung (freie Antwort/
        Rückfrage gesendet) | erstantwort_gesendet | zahlung_ausstehend |
-       bezahlt_akzeptiert | abgelehnt | storniert"""
+       bezahlt_akzeptiert | angereist (Aufenthalt erfasst) | nicht_erschienen |
+       abgelehnt | storniert"""
 
     newsletter_einwilligung: Mapped[bool] = mapped_column(Boolean, default=False)
     """Separate Opt-in-Angabe, NICHT vorangehakt (siehe Konzept Abschnitt 11.1)."""
