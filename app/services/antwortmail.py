@@ -23,6 +23,15 @@ from app.models.kommunikation import EmailVorlage
 from app.models.reservation import Reservationsanfrage
 
 TYP_ERSTANTWORT = "erstantwort_zahlungsinfo"
+TYP_FREI = "freie_antwort"
+TYP_BESTAETIGUNG = "bestaetigung_definitiv"
+VORLAGENTYPEN = {
+    TYP_ERSTANTWORT: "Antwort mit Anzahlung",
+    TYP_FREI: "Freie Antwort",
+    TYP_BESTAETIGUNG: "Bestätigung definitiv",
+}
+"""Freie Antwort: nur Anrede, eigener Text und Signatur – für Rückfragen
+(«Sind Hunde erlaubt?») und das Hin und Her vor der eigentlichen Reservation."""
 SPRACHEN = ("de", "fr", "it", "en")
 
 # --- Betriebsangaben ------------------------------------------------------------
@@ -162,16 +171,99 @@ Kind regards
 }
 
 
+STARTVORLAGEN_FREI = {
+    "de": ("{{antwortBetreff}}", "Guten Tag {{gastName}}\n\nFreundliche Grüsse\n{{signatur}}"),
+    "fr": ("{{antwortBetreff}}", "Bonjour {{gastName}},\n\nMeilleures salutations\n{{signatur}}"),
+    "it": ("{{antwortBetreff}}", "Buongiorno {{gastName}},\n\nCordiali saluti\n{{signatur}}"),
+    "en": ("{{antwortBetreff}}", "Dear {{gastName}},\n\nKind regards\n{{signatur}}"),
+}
+STARTVORLAGEN_BESTAETIGUNG = {
+    "de": (
+        "Bestätigung Ihrer Reservation vom {{anreise}} bis {{abreise}} – Panorama-Camping Aeschi",
+        """Guten Tag {{gastName}}
+
+{{zahlungsbestaetigung}}
+
+Ihre Reservation ist definitiv gebucht:
+
+Anreise: {{anreise}}
+Abreise: {{abreise}} ({{naechte}} Nächte)
+Stellplatz: {{stellplatzTyp}}
+Personen: {{personen}}
+
+Wir freuen uns auf Ihren Besuch.
+
+Freundliche Grüsse
+{{signatur}}""",
+    ),
+    "fr": (
+        "Confirmation de votre réservation du {{anreise}} au {{abreise}} – Panorama-Camping Aeschi",
+        """Bonjour {{gastName}},
+
+{{zahlungsbestaetigung}}
+
+Votre réservation est définitive :
+
+Arrivée : {{anreise}}
+Départ : {{abreise}} ({{naechte}} nuits)
+Emplacement : {{stellplatzTyp}}
+Personnes : {{personen}}
+
+Nous nous réjouissons de votre visite.
+
+Meilleures salutations
+{{signatur}}""",
+    ),
+    "it": (
+        "Conferma della sua prenotazione dal {{anreise}} al {{abreise}} – Panorama-Camping Aeschi",
+        """Buongiorno {{gastName}},
+
+{{zahlungsbestaetigung}}
+
+La sua prenotazione è definitiva:
+
+Arrivo: {{anreise}}
+Partenza: {{abreise}} ({{naechte}} notti)
+Piazzola: {{stellplatzTyp}}
+Persone: {{personen}}
+
+Ci rallegriamo della sua visita.
+
+Cordiali saluti
+{{signatur}}""",
+    ),
+    "en": (
+        "Confirmation of your reservation from {{anreise}} to {{abreise}} – Panorama-Camping Aeschi",
+        """Dear {{gastName}},
+
+{{zahlungsbestaetigung}}
+
+Your reservation is now confirmed:
+
+Arrival: {{anreise}}
+Departure: {{abreise}} ({{naechte}} nights)
+Pitch: {{stellplatzTyp}}
+Guests: {{personen}}
+
+We look forward to welcoming you.
+
+Kind regards
+{{signatur}}""",
+    ),
+}
+_STARTVORLAGEN_JE_TYP = {TYP_ERSTANTWORT: STARTVORLAGEN, TYP_FREI: STARTVORLAGEN_FREI,
+                         TYP_BESTAETIGUNG: STARTVORLAGEN_BESTAETIGUNG}
+
+
 def startvorlagen_ergaenzen(db: Session) -> int:
     """Legt fehlende Vorlagen an (idempotent). Gibt die Anzahl neuer Vorlagen zurück."""
-    vorhanden = {
-        v.sprache for v in db.execute(select(EmailVorlage).where(EmailVorlage.typ == TYP_ERSTANTWORT)).scalars()
-    }
+    vorhanden = {(v.typ, v.sprache) for v in db.execute(select(EmailVorlage)).scalars()}
     neu = 0
-    for sprache, (betreff, koerper) in STARTVORLAGEN.items():
-        if sprache not in vorhanden:
-            db.add(EmailVorlage(typ=TYP_ERSTANTWORT, sprache=sprache, betreff=betreff, koerper=koerper, aktiv=True))
-            neu += 1
+    for typ, vorlagen in _STARTVORLAGEN_JE_TYP.items():
+        for sprache, (betreff, koerper) in vorlagen.items():
+            if (typ, sprache) not in vorhanden:
+                db.add(EmailVorlage(typ=typ, sprache=sprache, betreff=betreff, koerper=koerper, aktiv=True))
+                neu += 1
     if neu:
         db.commit()
     return neu
@@ -191,6 +283,10 @@ PLATZHALTER = {
     "betrag": "Anzahlung, beim Vorbereiten von Hand eingegeben (z.B. CHF 120.00)",
     "zahlungsfrist": "Zahlungsfrist, falls beim Vorbereiten angegeben (sonst leer)",
     "zahlungsinfo": "Ganzer Absatz zur Anzahlung: Betrag, IBAN/BIC, Frist und TWINT, soweit vorhanden",
+    "antwortBetreff": "Betreff einer Antwort: «Re: …» auf die letzte Mail des Gastes, sonst «Ihre Anfrage – Panorama-Camping Aeschi»",
+    "anfrageNummer": "Nummer der Anfrage, z.B. 2026-042 (steht automatisch auch im Betreff)",
+    "anzahlungErhalten": "Gutgeschriebene Anzahlung beim Akzeptieren, z.B. CHF 85.40 (sonst leer)",
+    "zahlungsbestaetigung": "Satz «Vielen Dank für Ihre Anzahlung von …», leer wenn ohne Anzahlung akzeptiert",
     "signatur": "Signatur aus den Betriebsangaben",
     "infoblock": "Infoblock aus den Betriebsangaben",
 }
@@ -257,12 +353,35 @@ def betrag_text(betrag: Decimal) -> str:
     return "CHF " + f"{betrag:,.2f}".replace(",", "'")
 
 
-def zahlungsinfo(sprache: str, betrag: Decimal, frist: date | None, betrieb: dict[str, str]) -> str:
+_ZAHLUNGSZWECK = {"de": "Zahlungszweck", "fr": "Communication", "it": "Causale", "en": "Reference"}
+_NUMMER_LABEL = {"de": "Anfrage", "fr": "Demande", "it": "Richiesta", "en": "Request"}
+_DANK_ANZAHLUNG = {
+    "de": "Vielen Dank für Ihre Anzahlung von {betrag}, die bei uns eingegangen ist.",
+    "fr": "Nous vous remercions de votre acompte de {betrag}, que nous avons bien reçu.",
+    "it": "La ringraziamo per l'acconto di {betrag}, che abbiamo ricevuto.",
+    "en": "Thank you for your deposit of {betrag}, which we have received.",
+}
+
+
+def nummer_text(nummer: str | None, sprache: str) -> str:
+    return f"{_NUMMER_LABEL.get(sprache, _NUMMER_LABEL['de'])} {nummer}" if nummer else ""
+
+
+def betreff_mit_nummer(betreff: str, nummer: str | None, sprache: str) -> str:
+    """Hängt «[Anfrage 2026-042]» an, damit Antworten des Gastes sicher zugeordnet werden."""
+    if not nummer or nummer in betreff:
+        return betreff
+    return f"{betreff} [{nummer_text(nummer, sprache)}]"
+
+
+def zahlungsinfo(sprache: str, betrag: Decimal, frist: date | None, betrieb: dict[str, str],
+                 nummer: str | None = None) -> str:
     einleitung, frist_satz, twint_satz = _ZAHLUNG.get(sprache, _ZAHLUNG["de"])
     zeilen = [einleitung.format(betrag=betrag_text(betrag))]
     konto = [f"IBAN {betrieb['iban']}" if betrieb.get("iban") else "",
              f"BIC {betrieb['bic']}" if betrieb.get("bic") else "",
-             betrieb.get("kontoinhaber", "")]
+             betrieb.get("kontoinhaber", ""),
+             f"{_ZAHLUNGSZWECK.get(sprache, _ZAHLUNGSZWECK['de'])}: {nummer_text(nummer, sprache)}" if nummer else ""]
     zeilen += [k for k in konto if k]
     absatz = "\n".join(zeilen)
     extra = []
@@ -290,8 +409,27 @@ def ersetze(text: str, werte: dict[str, str]) -> tuple[str, list[str]]:
     return ergebnis, unbekannt
 
 
-def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal, frist: date | None,
-               betrieb: dict[str, str]) -> dict[str, str]:
+_BETREFF_STANDARD = {
+    "de": "Ihre Anfrage – Panorama-Camping Aeschi",
+    "fr": "Votre demande – Panorama-Camping Aeschi",
+    "it": "La sua richiesta – Panorama-Camping Aeschi",
+    "en": "Your enquiry – Panorama-Camping Aeschi",
+}
+_ANTWORT_PRAEFIX = re.compile(r"^\s*(?:(?:re|aw|antw|wg|fw|fwd|sv|r|rif|tr)\s*(?:\[\d+\])?\s*:\s*)+", re.IGNORECASE)
+
+
+def antwort_betreff(letzter_betreff: str | None, sprache: str) -> str:
+    """«Re: <Betreff der letzten Gastmail>» ohne gestapelte Re:/AW:, sonst ein Standardbetreff."""
+    rest = _ANTWORT_PRAEFIX.sub("", letzter_betreff or "").strip()
+    rest = re.sub(r"\s*\[[^\]]*\b20\d{2}-\d{3,5}\]\s*$", "", rest)  # Nummer wird neu angehängt
+    if not rest or rest.lower() in ("eingefügter mailtext",):
+        return _BETREFF_STANDARD.get(sprache, _BETREFF_STANDARD["de"])
+    return f"Re: {rest}"
+
+
+def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal | None, frist: date | None,
+               betrieb: dict[str, str], letzter_betreff: str | None = None,
+               erhalten: Decimal | None = None) -> dict[str, str]:
     naechte = (anfrage.gewuenscht_bis - anfrage.gewuenscht_von).days if anfrage.gewuenscht_von and anfrage.gewuenscht_bis else ""
     return {
         "gastName": anfrage.gast_name,
@@ -302,9 +440,14 @@ def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal, fris
         "personen": personen_text(anfrage.anzahl_erwachsene or 0, anfrage.anzahl_kinder or 0, sprache),
         "erwachsene": str(anfrage.anzahl_erwachsene or 0),
         "kinder": str(anfrage.anzahl_kinder or 0),
-        "betrag": betrag_text(betrag),
+        "betrag": betrag_text(betrag) if betrag is not None else "",
         "zahlungsfrist": datum_text(frist, sprache),
-        "zahlungsinfo": zahlungsinfo(sprache, betrag, frist, betrieb),
+        "zahlungsinfo": zahlungsinfo(sprache, betrag, frist, betrieb, anfrage.nummer) if betrag is not None else "",
+        "antwortBetreff": antwort_betreff(letzter_betreff, sprache),
+        "anfrageNummer": anfrage.nummer or "",
+        "anzahlungErhalten": betrag_text(erhalten) if erhalten else "",
+        "zahlungsbestaetigung": (_DANK_ANZAHLUNG.get(sprache, _DANK_ANZAHLUNG["de"]).format(betrag=betrag_text(erhalten))
+                                 if erhalten else ""),
         "signatur": betrieb.get("signatur", ""),
         "infoblock": betrieb.get("infoblock", ""),
     }
@@ -313,12 +456,51 @@ def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal, fris
 def beispiel_anfrage() -> Reservationsanfrage:
     """Erfundene Anfrage für die Vorschau im Vorlagen-Editor."""
     return Reservationsanfrage(
-        gast_name="Anna Beispiel", gast_email="anna@example.ch",
+        nummer="2027-001", gast_name="Anna Beispiel", gast_email="anna@example.ch",
         gewuenscht_von=date(2027, 7, 2), gewuenscht_bis=date(2027, 7, 5),
         stellplatz_typ="wohnwagen", anzahl_erwachsene=2, anzahl_kinder=1,
     )
 
 
-def warnungen_betrieb(betrieb: dict[str, str]) -> list[str]:
-    fehlend = [f.bezeichnung for f in BETRIEBSFELDER if f.schluessel in ("signatur", "iban") and not betrieb.get(f.schluessel)]
+def warnungen_betrieb(betrieb: dict[str, str], typ: str = TYP_ERSTANTWORT) -> list[str]:
+    noetig = ("signatur", "iban") if typ == TYP_ERSTANTWORT else ("signatur",)
+    fehlend = [f.bezeichnung for f in BETRIEBSFELDER if f.schluessel in noetig and not betrieb.get(f.schluessel)]
     return [f"In den Einstellungen fehlt: {', '.join(fehlend)}"] if fehlend else []
+
+
+_ZAHLUNGSHINWEIS = re.compile(r"\bIBAN\b|anzahlung|deposit|acompte|acconto|caparra", re.IGNORECASE)
+
+
+def ist_zahlungsantwort(text: str) -> bool:
+    """Erkennt in einer ausserhalb des Tools geschriebenen Antwort die Aufforderung zur Anzahlung."""
+    return bool(_ZAHLUNGSHINWEIS.search(text or ""))
+
+
+def status_nach_antwort(anfrage: Reservationsanfrage, mit_anzahlung: bool) -> None:
+    """
+    Status nach einer gesendeten Antwort, solange die Anfrage noch in der Prüfung
+    bzw. in Abklärung ist: mit Anzahlung -> «Antwort gesendet», sonst (freie
+    Antwort, Rückfrage) -> «In Abklärung». Spätere Status bleiben unverändert.
+    """
+    from app.services.anfrage_pruefung import PRUEF_STATUS
+
+    if anfrage.status not in PRUEF_STATUS | {"in_abklaerung"}:
+        return
+    if mit_anzahlung and anfrage.vollstaendig:
+        anfrage.status = "erstantwort_gesendet"
+    elif not mit_anzahlung:
+        anfrage.status = "in_abklaerung"
+
+
+def letzter_gast_betreff(db: Session, anfrage: Reservationsanfrage) -> str | None:
+    """Betreff der letzten Mail des Gastes (Postfach), sonst aus dem Originaltext der Anfrage."""
+    from app.models.kommunikation import MailNachricht
+
+    n = db.execute(
+        select(MailNachricht).where(MailNachricht.reservationsanfrage_id == anfrage.id, MailNachricht.richtung == "eingang")
+        .order_by(MailNachricht.datum.desc())
+    ).scalars().first()
+    if n and n.betreff:
+        return n.betreff
+    erste = (anfrage.rohtext or "").split("\n", 1)[0]
+    return erste[len("Betreff:"):].strip() if erste.startswith("Betreff:") else None

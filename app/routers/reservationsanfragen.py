@@ -10,6 +10,7 @@ Erstantwort-Versand (Versand ist laut Konzept immer durch eine Person
 ausgelöst).
 """
 import uuid
+from typing import Literal
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -21,7 +22,8 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.database import get_db
 from app.models.kommunikation import EmailVersand, EmailVorlage, MailNachricht
-from app.models.reservation import Reservationsanfrage
+from app.models.buchung import Buchung
+from app.models.reservation import Reservationsanfrage, Zahlung
 from app.schemas.reservation import (
     ReservationsanfrageCreate,
     ReservationsanfrageDetail,
@@ -30,6 +32,7 @@ from app.schemas.reservation import (
     StatusAenderung,
 )
 from app.services import antwortmail as am
+from app.services import belegung as bel
 from app.services.anfrage_pruefung import wende_pruefung_an
 from app.services.mail_import import (
     MailImportNichtKonfiguriert,
@@ -128,13 +131,33 @@ def _neue_mails(db: Session, anfrage_id: uuid.UUID | None = None) -> dict:
     return dict(db.execute(stmt).all())
 
 
+def _anzahlungen(db: Session, anfrage_id: uuid.UUID) -> list[Zahlung]:
+    return list(db.execute(
+        select(Zahlung).where(Zahlung.bezug_typ == "reservationsanfrage", Zahlung.bezug_id == anfrage_id,
+                              Zahlung.status == "eingegangen").order_by(Zahlung.eingegangen_am)
+    ).scalars())
+
+
+def _detail(db: Session, anfrage: Reservationsanfrage) -> ReservationsanfrageDetail:
+    zahlungen = _anzahlungen(db, anfrage.id)
+    letzte = zahlungen[-1] if zahlungen else None
+    return ReservationsanfrageDetail.model_validate(anfrage).model_copy(update={
+        "neue_mails": _neue_mails(db, anfrage.id).get(anfrage.id, 0),
+        "anzahlung_erhalten": sum((Decimal(z.betrag) for z in zahlungen), Decimal("0")) if zahlungen else None,
+        "anzahlung_eingegangen_am": letzte.eingegangen_am.date() if letzte and letzte.eingegangen_am else None,
+        "anzahlung_zahlungsart": letzte.zahlungsart if letzte else None,
+        "hohe_belegung": bel.hohe_belegung(db, anfrage),
+        "buchung_id": db.execute(select(Buchung.id).where(Buchung.reservationsanfrage_id == anfrage.id)
+                                 .where(Buchung.status != "storniert")).scalars().first(),
+    })
+
+
 @router.get("/{anfrage_id}", response_model=ReservationsanfrageDetail)
 def anfrage_lesen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
     anfrage = db.get(Reservationsanfrage, anfrage_id)
     if not anfrage:
         raise HTTPException(404, "Reservationsanfrage nicht gefunden")
-    return ReservationsanfrageDetail.model_validate(anfrage).model_copy(
-        update={"neue_mails": _neue_mails(db, anfrage_id).get(anfrage_id, 0)})
+    return _detail(db, anfrage)
 
 
 @router.patch("/{anfrage_id}", response_model=ReservationsanfrageDetail)
@@ -148,7 +171,7 @@ def anfrage_aendern(anfrage_id: uuid.UUID, daten: ReservationsanfrageUpdate, db:
     wende_pruefung_an(anfrage)
     db.commit()
     db.refresh(anfrage)
-    return anfrage
+    return _detail(db, anfrage)
 
 
 # Status, die nur eine vollständige Anfrage erreichen darf
@@ -165,6 +188,10 @@ def status_setzen(anfrage_id: uuid.UUID, daten: StatusAenderung, db: Session = D
     anfrage = db.get(Reservationsanfrage, anfrage_id)
     if not anfrage:
         raise HTTPException(404, "Reservationsanfrage nicht gefunden")
+    if daten.status == "angereist":
+        raise HTTPException(400, "«Angereist» entsteht beim Check-in in der Belegung")
+    if anfrage.status == "angereist":
+        raise HTTPException(400, "Die Reservation ist angereist – zuerst den Aufenthalt in der Belegung löschen")
     if daten.status in _STATUS_NUR_VOLLSTAENDIG and not anfrage.vollstaendig:
         raise HTTPException(
             400, f"Anfrage ist unvollständig ({anfrage.fehlende_angaben}) – zuerst Angaben ergänzen"
@@ -177,51 +204,113 @@ def status_setzen(anfrage_id: uuid.UUID, daten: StatusAenderung, db: Session = D
         anfrage.status = daten.status
     db.commit()
     db.refresh(anfrage)
-    return anfrage
+    return _detail(db, anfrage)
+
+
+@router.post("/{anfrage_id}/nicht-erschienen", response_model=ReservationsanfrageDetail)
+def nicht_erschienen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    Gast ist trotz Reservation nicht angereist: der Platz wird freigegeben.
+    Eine erhaltene Anzahlung bleibt als Zahlung erfasst.
+    """
+    anfrage = _anfrage(db, anfrage_id)
+    if anfrage.status != "bezahlt_akzeptiert":
+        raise HTTPException(400, "Nur akzeptierte Reservationen können als nicht erschienen markiert werden")
+    if anfrage.gewuenscht_von and anfrage.gewuenscht_von > date.today():
+        raise HTTPException(400, "Der Anreisetag ist noch nicht erreicht – stattdessen stornieren")
+    anfrage.status = "nicht_erschienen"
+    db.commit()
+    db.refresh(anfrage)
+    return _detail(db, anfrage)
+
+
+@router.delete("/{anfrage_id}", status_code=204)
+def anfrage_loeschen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    Löscht eine Anfrage endgültig – mit Mailverlauf und erfassten Zahlungen
+    (z.B. Testdaten oder Doppelerfassung). Für Absagen «Stornieren» verwenden.
+    Nicht möglich, wenn bereits ein Aufenthalt erfasst ist.
+    """
+    anfrage = _anfrage(db, anfrage_id)
+    if db.execute(select(Buchung.id).where(Buchung.reservationsanfrage_id == anfrage.id)).first():
+        raise HTTPException(400, "Zu dieser Reservation gibt es einen Aufenthalt – zuerst diesen löschen")
+    for modell, bedingung in (
+        (EmailVersand, (EmailVersand.bezug_typ == "reservationsanfrage") & (EmailVersand.bezug_id == anfrage.id)),
+        (Zahlung, (Zahlung.bezug_typ == "reservationsanfrage") & (Zahlung.bezug_id == anfrage.id)),
+        (MailNachricht, MailNachricht.reservationsanfrage_id == anfrage.id),
+    ):
+        for eintrag in db.execute(select(modell).where(bedingung)).scalars():
+            db.delete(eintrag)
+    db.delete(anfrage)
+    db.commit()
+
+
+class Akzeptieren(BaseModel):
+    betrag: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
+    """Tatsächlich gutgeschriebener Betrag in CHF (z.B. bei Zahlung in Euro). Leer oder 0:
+    ohne Anzahlung akzeptiert (z.B. Stammgäste)."""
+    zahlungsart: Literal["bankueberweisung", "twint", "bar", "kreditkarte"] = "bankueberweisung"
+    eingegangen_am: date | None = None
+
+
+_AKZEPTIERBAR = {"geprueft_vollstaendig", "in_abklaerung", "erstantwort_gesendet", "zahlung_ausstehend"}
 
 
 @router.post("/{anfrage_id}/zahlung-bestaetigen", response_model=ReservationsanfrageDetail)
-def zahlung_bestaetigen(anfrage_id: uuid.UUID, db: Session = Depends(get_db)):
+def zahlung_bestaetigen(anfrage_id: uuid.UUID, daten: Akzeptieren | None = None, db: Session = Depends(get_db)):
     """
-    Markiert die Anzahlung als eingegangen (Konzept Abschnitt 10.5).
+    Akzeptiert die Reservation (Konzept Abschnitt 10.5) und hält die
+    gutgeschriebene Anzahlung als Zahlung fest – mit dem genauen Betrag in CHF,
+    der später in der Rechnung abgezogen wird. Ohne Betrag: akzeptiert ohne
+    Anzahlung.
 
-    HINWEIS: Erzeugt hier bewusst NOCH NICHT automatisch die Buchung –
-    das sollte im nächsten Ausbauschritt ergänzt werden (Buchung aus
-    Reservationsanfrage-Daten ableiten: Stellplatz-Zuordnung, Gast anlegen
-    o. verknüpfen, etc. sind fachliche Entscheidungen, die hier bewusst
-    nicht "geraten" werden).
+    HINWEIS: Erzeugt bewusst NOCH KEINE Buchung (Stellplatz-Zuteilung erfolgt
+    ausserhalb des Tools).
     """
-    anfrage = db.get(Reservationsanfrage, anfrage_id)
-    if not anfrage:
-        raise HTTPException(404, "Reservationsanfrage nicht gefunden")
-    if not anfrage.vollstaendig:
-        raise HTTPException(400, "Anfrage ist nicht vollständig – Zahlung kann nicht bestätigt werden")
-
+    daten = daten or Akzeptieren()
+    anfrage = _vollstaendige_anfrage(db, anfrage_id)
+    if anfrage.status not in _AKZEPTIERBAR:
+        raise HTTPException(400, "Diese Anfrage kann in ihrem Status nicht akzeptiert werden")
+    if daten.betrag:
+        eingang = daten.eingegangen_am or date.today()
+        db.add(Zahlung(
+            bezug_typ="reservationsanfrage", bezug_id=anfrage.id, betrag=daten.betrag, waehrung="CHF",
+            zahlungsart=daten.zahlungsart, status="eingegangen", referenz=anfrage.nummer,
+            eingegangen_am=datetime(eingang.year, eingang.month, eingang.day, 12, tzinfo=timezone.utc),
+            abgeglichen_von="Oberfläche (ohne Login)",
+        ))
     anfrage.status = "bezahlt_akzeptiert"
     db.commit()
     db.refresh(anfrage)
-    return anfrage
+    return _detail(db, anfrage)
 
 
 # --- Antwort mit Zahlungsinformationen (Konzept 10.2) ------------------------------
 
 class AntwortVorbereiten(BaseModel):
+    typ: Literal["erstantwort_zahlungsinfo", "freie_antwort", "bestaetigung_definitiv"] = "erstantwort_zahlungsinfo"
     sprache: str = Field(pattern="^(de|fr|it|en)$")
-    betrag: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+    betrag: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    """Pflicht bei der Antwort mit Anzahlung, bei der freien Antwort ohne Bedeutung."""
     zahlungsfrist: date | None = None
 
 
 class AntwortEntwurf(BaseModel):
     vorlage_id: uuid.UUID
+    typ: str
     sprache: str
     empfaenger: str
     betreff: str
     text: str
     warnungen: list[str]
+    einfuege_position: int | None = None
+    """Freie Antwort: Stelle nach der Anrede, an der der eigene Text beginnt."""
 
 
 class AntwortGesendet(BaseModel):
     vorlage_id: uuid.UUID
+    betrag: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    """Antwort mit Anzahlung: verlangter Betrag, wird beim Akzeptieren vorgeschlagen."""
     betreff: str = Field(min_length=1, max_length=300)
     text: str = Field(min_length=1, max_length=50000)
 
@@ -250,46 +339,76 @@ def _vollstaendige_anfrage(db: Session, anfrage_id: uuid.UUID) -> Reservationsan
     return anfrage
 
 
+def _anfrage(db: Session, anfrage_id: uuid.UUID) -> Reservationsanfrage:
+    anfrage = db.get(Reservationsanfrage, anfrage_id)
+    if not anfrage:
+        raise HTTPException(404, "Reservationsanfrage nicht gefunden")
+    return anfrage
+
+
 @router.post("/{anfrage_id}/antwort/vorbereiten", response_model=AntwortEntwurf)
 def antwort_vorbereiten(anfrage_id: uuid.UUID, daten: AntwortVorbereiten, db: Session = Depends(get_db)):
-    """Füllt die Vorlage der gewählten Sprache aus. Es wird noch nichts gespeichert oder verschickt."""
-    anfrage = _vollstaendige_anfrage(db, anfrage_id)
+    """
+    Füllt die Vorlage der gewählten Art und Sprache aus. Es wird noch nichts
+    gespeichert oder verschickt. Die Antwort mit Anzahlung braucht eine
+    vollständige Anfrage und einen Betrag; die freie Antwort geht immer.
+    """
+    mit_anzahlung = daten.typ == am.TYP_ERSTANTWORT
+    anfrage = _anfrage(db, anfrage_id) if daten.typ == am.TYP_FREI else _vollstaendige_anfrage(db, anfrage_id)
+    if mit_anzahlung and daten.betrag is None:
+        raise HTTPException(422, "Bitte die Anzahlung angeben")
+    if daten.typ == am.TYP_BESTAETIGUNG and anfrage.status != "bezahlt_akzeptiert":
+        raise HTTPException(400, "Die Bestätigung gibt es erst, wenn die Reservation akzeptiert ist")
+    zahlungen = _anzahlungen(db, anfrage.id)
+    erhalten = sum((Decimal(z.betrag) for z in zahlungen), Decimal("0")) or None
     am.startvorlagen_ergaenzen(db)
     vorlage = db.execute(
-        select(EmailVorlage).where(EmailVorlage.typ == am.TYP_ERSTANTWORT, EmailVorlage.sprache == daten.sprache)
+        select(EmailVorlage).where(EmailVorlage.typ == daten.typ, EmailVorlage.sprache == daten.sprache)
     ).scalar_one()
     betrieb = am.betriebsangaben(db)
-    werte = am.werte_fuer(anfrage, daten.sprache, daten.betrag, daten.zahlungsfrist, betrieb)
+    werte = am.werte_fuer(anfrage, daten.sprache, daten.betrag if mit_anzahlung else None,
+                          daten.zahlungsfrist, betrieb, am.letzter_gast_betreff(db, anfrage), erhalten)
     betreff, u1 = am.ersetze(vorlage.betreff, werte)
+    betreff = am.betreff_mit_nummer(betreff, anfrage.nummer, daten.sprache)
     text, u2 = am.ersetze(vorlage.koerper, werte)
-    warnungen = am.warnungen_betrieb(betrieb)
+    warnungen = am.warnungen_betrieb(betrieb, daten.typ)
     if u1 or u2:
         warnungen.append("Unbekannte Platzhalter in der Vorlage: " + ", ".join(sorted(set(u1 + u2))))
-    return AntwortEntwurf(vorlage_id=vorlage.id, sprache=daten.sprache, empfaenger=anfrage.gast_email,
-                          betreff=betreff, text=text, warnungen=warnungen)
+    position = None
+    if not mit_anzahlung:
+        absatz = text.find("\n\n")
+        position = absatz + 2 if absatz >= 0 else len(text)
+    return AntwortEntwurf(vorlage_id=vorlage.id, typ=daten.typ, sprache=daten.sprache, empfaenger=anfrage.gast_email,
+                          betreff=betreff, text=text, warnungen=warnungen, einfuege_position=position)
 
 
 @router.post("/{anfrage_id}/antwort/gesendet", response_model=ReservationsanfrageDetail)
 def antwort_als_gesendet_markieren(anfrage_id: uuid.UUID, daten: AntwortGesendet, db: Session = Depends(get_db)):
     """
     Hält fest, dass die Antwort (aus dem eigenen Mailprogramm) verschickt wurde:
-    der endgültige Text wird protokolliert, der Status wechselt auf
-    "Antwort gesendet". Sobald SMTP eingerichtet ist, verschickt die App selbst.
+    der endgültige Text wird protokolliert. Status: Antwort mit Anzahlung ->
+    "Antwort gesendet", freie Antwort -> "In Abklärung" (siehe
+    antwortmail.status_nach_antwort). Sobald SMTP eingerichtet ist, verschickt
+    die App selbst.
     """
-    anfrage = _vollstaendige_anfrage(db, anfrage_id)
-    if not db.get(EmailVorlage, daten.vorlage_id):
+    vorlage = db.get(EmailVorlage, daten.vorlage_id)
+    if not vorlage:
         raise HTTPException(400, "Vorlage nicht gefunden")
+    mit_anzahlung = vorlage.typ == am.TYP_ERSTANTWORT
+    anfrage = _anfrage(db, anfrage_id) if vorlage.typ == am.TYP_FREI else _vollstaendige_anfrage(db, anfrage_id)
+    if mit_anzahlung and daten.betrag:
+        anfrage.anzahlung_verlangt = daten.betrag
     db.add(EmailVersand(
         bezug_typ="reservationsanfrage", bezug_id=anfrage.id, vorlage_id=daten.vorlage_id,
         gesendet_von="Oberfläche (ohne Login)", empfaenger=anfrage.gast_email,
         betreff_final=daten.betreff, koerper_final=daten.text, status="gesendet",
         gesendet_am=datetime.now(timezone.utc),
     ))
-    if anfrage.status in ("neu", "unvollstaendig", "geprueft_vollstaendig"):
-        anfrage.status = "erstantwort_gesendet"
+    if vorlage.typ != am.TYP_BESTAETIGUNG:
+        am.status_nach_antwort(anfrage, mit_anzahlung)
     db.commit()
     db.refresh(anfrage)
-    return anfrage
+    return _detail(db, anfrage)
 
 
 def _utc(d: datetime) -> datetime:

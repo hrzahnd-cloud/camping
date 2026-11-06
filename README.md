@@ -33,15 +33,57 @@ Thunderbird, auch als Anhang). Mails von eigenen Adressen (`MAIL_EIGENE_ADRESSEN
 gelten als Antwort und werden der Anfrage zugeordnet; Antworten von Gästen («Re:/AW:» oder
 Mail-Verweise) ebenfalls und erscheinen als «Neue Mail». Details: `app/services/mailverlauf.py`.
 
-**Antwortmails:** In einer vollständigen Reservation erstellt «Antwort vorbereiten» den Text aus
-der Vorlage in der Sprache des Gastes. Die Anzahlung wird von Hand eingegeben, eine Zahlungsfrist
-ist optional. Der Text lässt sich anpassen, kopieren bzw. im Mailprogramm öffnen; «Als gesendet
-markieren» protokolliert ihn und setzt den Status. Sobald SMTP eingerichtet ist, kann die App
-selbst versenden. Signatur, IBAN usw. liegen in der Datenbank, nicht im (öffentlichen) Code.
+**Antwortmails:** Zwei Antwortarten, je mit Vorlage in vier Sprachen (Einstellungen ›
+Antwortvorlagen):
 
-Die Zuteilung einzelner Stellplätze erfolgt ausserhalb des Tools; die Belegung zeigt deshalb
-Reservationen je Stellplatz-Typ. Eine akzeptierte Reservation bleibt eine Reservation mit
-Status «akzeptiert» (es entsteht keine Buchung mit Stellplatz).
+- «Antwort mit Anzahlung» (nur bei vollständiger Reservation): Text mit Infoblock und
+  Zahlungsangaben. Die Anzahlung wird von Hand eingegeben, eine Zahlungsfrist ist optional.
+  Status danach «Antwort gesendet».
+- «Freie Antwort» (immer möglich, auch bei fehlenden Angaben): nur Anrede, eigener Text und
+  Signatur, Betreff «Re: …» auf die letzte Mail des Gastes. Für Rückfragen wie «Sind Hunde
+  erlaubt?». Status danach «In Abklärung» (Ablage «Warten auf Gast»); ein späterer Status wie
+  «Antwort gesendet» wird nicht zurückgesetzt.
+
+- «Bestätigung definitiv» (nach dem Akzeptieren): Reservation ist definitiv gebucht, mit Dank
+  für die gutgeschriebene Anzahlung bzw. ohne diesen Satz, wenn ohne Anzahlung akzeptiert wurde.
+
+**Anfragenummer:** Jede Anfrage erhält beim Anlegen eine Nummer «Jahr-Nummer» (2026-001, …,
+Migration 0006 nummeriert bestehende Anfragen nach). Sie steht im Betreff jeder Antwort
+(«… [Anfrage 2026-042]») und als Zahlungszweck in der Antwort mit Anzahlung. Beim Mail-Import
+hat sie Vorrang vor allen anderen Merkmalen der Zuordnung, weil sie auch Weiterleitungen und
+Antworten von anderen Adressen übersteht. In der Liste lässt sich nach ihr suchen.
+
+**Akzeptieren:** «Zahlung erhalten, akzeptieren» fragt den tatsächlich gutgeschriebenen Betrag
+in CHF ab (z.B. nach Umrechnung einer Zahlung in Euro), dazu Zahlungsart und Datum. Er wird als
+Zahlung zur Anfrage gespeichert und ist die Grundlage für die spätere Rechnung; die verlangte
+Anzahlung bleibt zum Vergleich erhalten. Ohne Betrag wird ohne Anzahlung akzeptiert (z.B.
+Stammgäste). Danach wird die Bestätigung vorbereitet.
+
+Der Text lässt sich anpassen, kopieren bzw. im Mailprogramm öffnen; «Als gesendet markieren»
+speichert ihn im Mailverlauf und setzt den Status. Eigene Antworten, die per BCC/Weiterleitung
+ins Tool-Postfach kommen, gelten als «Antwort mit Anzahlung», wenn sie IBAN oder Anzahlung
+erwähnen, sonst als freie Antwort. Sobald SMTP eingerichtet ist, kann die App selbst versenden.
+Signatur, IBAN usw. liegen in der Datenbank, nicht im (öffentlichen) Code.
+
+**Belegung:** Die Zuteilung einzelner Stellplätze erfolgt ausserhalb des Tools; die Belegung
+zeigt deshalb Reservationen und Aufenthalte je Stellplatz-Typ. Gezählt werden nur akzeptierte
+Reservationen und Aufenthalte. Zelt, Wohnwagen und Camper zählen gegen die Platzzahl (Standard
+50, Meldung ab 45 belegten Plätzen pro Nacht, beides unter Einstellungen › Belegung), Zwärgli und
+Spycher separat. Die Übersicht zeigt je Nacht die Auslastung, die Zahlen je Typ sowie Anreisen
+und Abreisen; ein Klick öffnet rechts den Tag bzw. den Eintrag, ohne die Seite zu verlassen.
+
+**Check-in, Aufenthalt:** Ab dem Anreisetag lässt sich eine akzeptierte Reservation in der
+Belegung einchecken: Gast, Buchung und Aufenthalt entstehen in
+einem Schritt. Pflicht sind Name und Nationalität (HESTA), Adresse und Platznummer sind optional;
+die Reservation wird «angereist». Gäste ohne
+Reservation (Nebensaison) über «Check-in ohne Reservation». «Abreise erfassen» gibt den Platz
+frei. Ist ein Gast nicht erschienen, zeigt «Heute» ihn am Morgen danach; «Nicht angereist» gibt
+den Platz frei, eine Anzahlung bleibt erfasst. Stornieren behält die Anfrage, «Endgültig
+löschen» entfernt sie mit Mailverlauf und Zahlungen (z.B. Testdaten).
+
+**Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
+Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
+@example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
 
 **Module:** Buchungen, Artikel & Preise, Rechnungen, Auswertungen, HESTA und Feratel sind im
 Backend vollständig vorhanden und in der Datenbank vorgesehen, aber standardmässig

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import { ausIso, datumKurz, fehlendText, heuteIso, isoDatum, naechte, personen, plusTage } from "../format.js";
 import { Panorama, TYP_STIL, TypMarke } from "../typen.jsx";
 import { StatusMarke } from "./Reservationen.jsx";
 
-const AKTIV = new Set(["neu", "unvollstaendig", "geprueft_vollstaendig", "erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert"]);
+const AKTIV = new Set(["neu", "unvollstaendig", "geprueft_vollstaendig", "in_abklaerung", "erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert", "angereist"]);
 const ZU_BEARBEITEN = new Set(["neu", "unvollstaendig", "geprueft_vollstaendig"]);
 const LANG = new Intl.DateTimeFormat("de-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 const WOCHENTAG = new Intl.DateTimeFormat("de-CH", { weekday: "short" });
@@ -20,14 +20,20 @@ export default function Heute() {
   const heute = heuteIso();
   const [anfragen, setAnfragen] = useState(null);
   const [woche, setWoche] = useState(null);
+  const [nichtAngereist, setNichtAngereist] = useState([]);
   const [fehler, setFehler] = useState(null);
 
-  useEffect(() => {
+  const laden = useCallback(() => {
     const bis = isoDatum(plusTage(new Date(), 6));
-    Promise.all([api.get("/reservationsanfragen"), api.get(`/belegung?von=${heute}&bis=${bis}`)])
-      .then(([a, w]) => { setAnfragen(a); setWoche(w); })
+    Promise.all([api.get("/reservationsanfragen"), api.get(`/belegung?von=${heute}&bis=${bis}`), api.get("/belegung/nicht-angereist")])
+      .then(([a, w, n]) => { setAnfragen(a); setWoche(w); setNichtAngereist(n); })
       .catch((e) => setFehler(e.message));
   }, [heute]);
+  useEffect(laden, [laden]);
+
+  const nichtErschienen = async (id) => {
+    try { await api.post(`/reservationsanfragen/${id}/nicht-erschienen`); laden(); } catch (e) { setFehler(e.message); }
+  };
 
   const { anreisen, abreisen, offen } = useMemo(() => {
     const aktiv = (anfragen || []).filter((a) => AKTIV.has(a.status));
@@ -56,6 +62,25 @@ export default function Heute() {
       </header>
       {fehler && <p className="meldung fehler">{fehler}</p>}
       {!fehler && !anfragen && <p className="leer">Wird geladen …</p>}
+
+      {nichtAngereist.length > 0 && (
+        <section className="heute-karte nicht-angereist" aria-labelledby="h-nicht-angereist">
+          <h2 id="h-nicht-angereist">Nicht angereist</h2>
+          <p className="hinweis">Akzeptierte Reservationen mit Anreise vor heute, ohne Check-in. Angereist? Dann in der Belegung einchecken – sonst den Platz freigeben.</p>
+          <ul className="heute-liste">
+            {nichtAngereist.map((a) => (
+              <li key={a.anfrage_id} className="mit-aktionen">
+                <span className="zeile1"><strong>{a.gast_name}</strong>{a.nummer && <span className="nummer">{a.nummer}</span>}</span>
+                <span className="zeile2"><TypMarke code={a.stellplatz_typ} /> Anreise {datumKurz(a.von)}{a.gast_telefon ? ` · ${a.gast_telefon}` : ""}</span>
+                <span className="aktionen">
+                  <a className="knopf neben klein" href={`#/belegung?tag=${a.von}&eintrag=${a.anfrage_id}`}>In der Belegung</a>
+                  <button className="knopf leise klein" onClick={() => nichtErschienen(a.anfrage_id)}>Nicht erschienen, Platz freigeben</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {anfragen && (
         <div className="heute-raster">
@@ -98,7 +123,7 @@ function Liste({ titel, leer, eintraege }) {
           const n = naechte(a.gewuenscht_von, a.gewuenscht_bis);
           return (
             <li key={a.id}>
-              <a href="#/reservationen">
+              <a href={`#/belegung?tag=${a.gewuenscht_von}&eintrag=${a.id}`}>
                 <span className="zeile1"><strong>{a.gast_name}</strong><StatusMarke status={a.status} /></span>
                 <span className="zeile2">
                   <TypMarke code={a.stellplatz_typ} />

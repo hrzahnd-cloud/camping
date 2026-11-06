@@ -143,9 +143,18 @@ def test_eigene_antwort_per_bcc_wird_zugeordnet(db):
     art, zugeordnet = verarbeite_mail(db, antwort, EINSTELLUNGEN)
     assert art == "antwort" and zugeordnet.id == anfrage.id
     db.refresh(anfrage)
-    assert anfrage.status == "erstantwort_gesendet"
+    # Antwort ohne Zahlungsangaben = freie Antwort/Rückfrage
+    assert anfrage.status == "in_abklaerung"
     n = db.execute(select(MailNachricht).where(MailNachricht.richtung == "ausgang")).scalar_one()
     assert n.reservationsanfrage_id == anfrage.id and n.gelesen is True
+
+    mit_anzahlung = _mail(f"Camping Test <{EIGEN}>", "Re: Anfrage Zelt Juli",
+                          "Bitte überweisen Sie die Anzahlung von CHF 100.00 auf IBAN CH00 0000 0000 0000 0000 0.",
+                          an="anna@example.ch", message_id="<antwort-2@camping-test.ch>",
+                          datum="Thu, 29 Oct 2026 10:00:00 +0100")
+    assert verarbeite_mail(db, mit_anzahlung, EINSTELLUNGEN)[0] == "antwort"
+    db.refresh(anfrage)
+    assert anfrage.status == "erstantwort_gesendet"
 
 
 def test_eigene_antwort_ohne_verweise_ueber_empfaenger(db):
@@ -257,7 +266,7 @@ def test_verlauf_gelesen_und_postfach_api(client, db):
     offen = status["nicht_zugeordnet"][0]
     r = client.post(f"/einstellungen/postfach/mails/{offen['id']}/zuordnen", json={"anfrage_id": str(anfrage.id)})
     assert r.status_code == 200 and r.json()["nicht_zugeordnet"] == []
-    assert client.get(f"/reservationsanfragen/{anfrage.id}").json()["status"] == "erstantwort_gesendet"
+    assert client.get(f"/reservationsanfragen/{anfrage.id}").json()["status"] == "in_abklaerung"
 
 
 def test_imap_abruf_ordnet_ein_und_protokolliert(db, monkeypatch):
@@ -299,3 +308,13 @@ def test_zeiten_werden_in_utc_gespeichert(db):
     gespeichert = n.datum if n.datum.tzinfo else n.datum.replace(tzinfo=timezone.utc)
     assert gespeichert == datetime(2026, 11, 3, 11, 30, tzinfo=timezone.utc)
     assert anfrage.id == n.reservationsanfrage_id
+
+
+def test_zuordnung_ueber_nummer_im_betreff(db):
+    anfrage = _anfrage_von_anna(db)
+    assert anfrage.nummer
+    # Gast schreibt von anderer Adresse, ohne Mail-Verweise, Nummer steht im Betreff
+    art, zugeordnet = verarbeite_mail(db, _mail("Partner <partner@example.org>",
+                                                f"WG: Re: Ihre Anfrage [Anfrage {anfrage.nummer}]", "Wir bringen einen Hund mit.",
+                                                datum="Fri, 30 Oct 2026 08:00:00 +0100"), EINSTELLUNGEN)
+    assert art == "nachtrag" and zugeordnet.id == anfrage.id

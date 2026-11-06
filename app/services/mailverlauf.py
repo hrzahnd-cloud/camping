@@ -33,9 +33,9 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models.einstellungen import AppEinstellung
 from app.models.kommunikation import EmailVersand, MailNachricht
-from app.models.reservation import Reservationsanfrage
+from app.models.reservation import Reservationsanfrage, NUMMER_RE
 from app.services import mail_import as mi
-from app.services.anfrage_pruefung import PRUEF_STATUS
+from app.services.antwortmail import ist_zahlungsantwort, status_nach_antwort
 
 MAX_TEXT = 20000
 
@@ -244,6 +244,15 @@ def _durch_verweise(db: Session, mail: Mail) -> Reservationsanfrage | None:
     return db.execute(select(Reservationsanfrage).where(Reservationsanfrage.mail_message_id.in_(ids))).scalars().first()
 
 
+def _durch_nummer(db: Session, betreff: str) -> Reservationsanfrage | None:
+    """Anfragenummer im Betreff (z.B. «Re: … [Anfrage 2026-042]») – übersteht auch Weiterleitungen."""
+    for nummer in NUMMER_RE.findall(betreff or ""):
+        anfrage = db.execute(select(Reservationsanfrage).where(Reservationsanfrage.nummer == nummer)).scalars().first()
+        if anfrage:
+            return anfrage
+    return None
+
+
 def _durch_gast(db: Session, adressen: list[str]) -> Reservationsanfrage | None:
     if not adressen:
         return None
@@ -319,17 +328,17 @@ def verarbeite_mail(db: Session, raw: bytes | EmailMessage, settings: Settings) 
 
     # 2. Eigene Antwort an den Gast
     if mail.von in eigene_adressen(settings):
-        anfrage = _durch_verweise(db, mail) or _durch_gast(db, mail.an)
+        anfrage = _durch_nummer(db, mail.betreff) or _durch_verweise(db, mail) or _durch_gast(db, mail.an)
         if anfrage and _schon_im_tool_protokolliert(db, anfrage, mail):
             return "duplikat", anfrage
         _speichern(db, mail, kennung, "ausgang", anfrage, True)
-        if anfrage and anfrage.vollstaendig and anfrage.status in PRUEF_STATUS:
-            anfrage.status = "erstantwort_gesendet"
+        if anfrage:
+            status_nach_antwort(anfrage, ist_zahlungsantwort(mail.text))
         db.commit()
         return ("antwort", anfrage) if anfrage else ("nicht_zugeordnet", None)
 
     # 3. Antwort des Gastes auf eine bestehende Anfrage
-    anfrage = _durch_verweise(db, mail)
+    anfrage = _durch_nummer(db, mail.betreff) or _durch_verweise(db, mail)
     if anfrage is None and _ANTWORT_BETREFF.match(mail.betreff):
         anfrage = _durch_gast(db, [mail.von])
     if anfrage:

@@ -11,11 +11,13 @@ Die Auflösung erfolgt stattdessen explizit in der Service-Schicht,
 z.B. `db.get(Reservationsanfrage, zahlung.bezug_id)` je nach `bezug_typ`
 (siehe app/services/zahlungen.py).
 """
+import re
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, event, select
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from app.database import Base
 from app.models.common import GUID, IDMixin, TimestampMixin
@@ -24,6 +26,11 @@ from app.models.common import GUID, IDMixin, TimestampMixin
 class Reservationsanfrage(Base, IDMixin, TimestampMixin):
     """Eingehende Anfrage (E-Mail/Homepage/manuell), vor Umwandlung in eine Buchung."""
     __tablename__ = "reservationsanfrage"
+
+    nummer: Mapped[str | None] = mapped_column(String(20), index=True, unique=True)
+    """Laufnummer «Jahr-Nummer» (z.B. 2026-042), wird beim Anlegen vergeben
+    (siehe vergib_nummern). Steht im Betreff jeder Antwort und ordnet
+    Rückmeldungen des Gastes sicher zu, auch nach einer Weiterleitung."""
 
     quelle: Mapped[str] = mapped_column(String(30))
     """email | homepage_formular | manuell"""
@@ -55,11 +62,44 @@ class Reservationsanfrage(Base, IDMixin, TimestampMixin):
     """Kommagetrennte Liste fehlender Pflichtfelder, falls unvollständig."""
 
     status: Mapped[str] = mapped_column(String(30), default="neu")
-    """neu | unvollstaendig | geprueft_vollstaendig | erstantwort_gesendet |
-       zahlung_ausstehend | bezahlt_akzeptiert | abgelehnt | storniert"""
+    """neu | unvollstaendig | geprueft_vollstaendig | in_abklaerung (freie Antwort/
+       Rückfrage gesendet) | erstantwort_gesendet | zahlung_ausstehend |
+       bezahlt_akzeptiert | angereist (Aufenthalt erfasst) | nicht_erschienen |
+       abgelehnt | storniert"""
 
     newsletter_einwilligung: Mapped[bool] = mapped_column(Boolean, default=False)
     """Separate Opt-in-Angabe, NICHT vorangehakt (siehe Konzept Abschnitt 11.1)."""
+
+    anzahlung_verlangt: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    """In der Antwort mit Anzahlung verlangter Betrag (CHF). Der tatsächlich
+    gutgeschriebene Betrag steht als Zahlung (bezug_typ «reservationsanfrage»)."""
+
+
+NUMMER_RE = re.compile(r"\b(20\d{2}-\d{3,5})\b")
+
+
+def _naechste_nummer(session: Session, jahr: int, vergeben: dict[int, int]) -> str:
+    if jahr not in vergeben:
+        vorhandene = session.execute(
+            select(Reservationsanfrage.nummer).where(Reservationsanfrage.nummer.like(f"{jahr}-%"))
+        ).scalars().all()
+        vergeben[jahr] = max((int(n.split("-", 1)[1]) for n in vorhandene if n), default=0)
+    vergeben[jahr] += 1
+    return f"{jahr}-{vergeben[jahr]:03d}"
+
+
+@event.listens_for(Session, "before_flush")
+def vergib_nummern(session: Session, _kontext, _instanzen) -> None:
+    """Jede neue Anfrage bekommt ihre Nummer, egal über welchen Weg sie angelegt wird."""
+    neue = sorted((o for o in session.new if isinstance(o, Reservationsanfrage) and not o.nummer),
+                  key=lambda a: a.eingangs_datum or datetime.now(timezone.utc))
+    if not neue:
+        return
+    vergeben: dict[int, int] = {}
+    with session.no_autoflush:
+        for anfrage in neue:
+            jahr = (anfrage.eingangs_datum or datetime.now(timezone.utc)).year
+            anfrage.nummer = _naechste_nummer(session, jahr, vergeben)
 
 
 class Zahlungsanbieterkonfiguration(Base, IDMixin, TimestampMixin):

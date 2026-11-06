@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from typing import Literal
 
@@ -10,7 +11,8 @@ StellplatzTyp = Literal["zeltwiese", "wohnwagen", "camper", "zwaergli", "spycher
 
 AnfrageStatus = Literal[
     "neu", "unvollstaendig", "geprueft_vollstaendig", "erstantwort_gesendet",
-    "zahlung_ausstehend", "bezahlt_akzeptiert", "abgelehnt", "storniert",
+    "zahlung_ausstehend", "bezahlt_akzeptiert", "abgelehnt", "storniert", "in_abklaerung",
+    "angereist", "nicht_erschienen",
 ]
 
 
@@ -58,6 +60,7 @@ class StatusAenderung(BaseModel):
 class ReservationsanfrageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
+    nummer: str | None = None
     quelle: str
     eingangs_datum: datetime
     sprache: str
@@ -81,3 +84,12 @@ class ReservationsanfrageOut(BaseModel):
 class ReservationsanfrageDetail(ReservationsanfrageOut):
     """Mit Originaltext der Mail (nur in der Detailansicht, nicht in Listen)."""
     rohtext: str | None = None
+    anzahlung_verlangt: Decimal | None = None
+    anzahlung_erhalten: Decimal | None = None
+    """Summe der gutgeschriebenen Anzahlungen in CHF (Grundlage für die Rechnung)."""
+    anzahlung_eingegangen_am: date | None = None
+    anzahlung_zahlungsart: str | None = None
+    hohe_belegung: list[dict] = []
+    """Nächte, in denen mit dieser Anfrage die Meldegrenze (z.B. 45 von 50) erreicht wird."""
+    buchung_id: uuid.UUID | None = None
+    """Aufenthalt, falls angereist."""
