@@ -422,3 +422,12 @@ a.knopf { text-decoration: none; color: inherit; }
 .verlauf-liste pre { max-height: 320px; }
 .postfach-angaben { margin: 4px 0; }
 .zuordnen { padding: 0 14px 12px; max-width: 520px; }
+
+/* Anfragenummer */
+.nummer {
+  font-variant-numeric: tabular-nums; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--tinte-leise); white-space: nowrap;
+}
+.anfrage .zeile1 strong { display: inline-flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.karte-detail > header .nummer { font-size: 0.9375rem; }
+.betrag-hinweis { font-size: 0.875rem; color: var(--tinte-leise); }

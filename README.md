@@ -44,6 +44,21 @@ Antwortvorlagen):
   erlaubt?». Status danach «In Abklärung» (Ablage «Warten auf Gast»); ein späterer Status wie
   «Antwort gesendet» wird nicht zurückgesetzt.
 
+- «Bestätigung definitiv» (nach dem Akzeptieren): Reservation ist definitiv gebucht, mit Dank
+  für die gutgeschriebene Anzahlung bzw. ohne diesen Satz, wenn ohne Anzahlung akzeptiert wurde.
+
+**Anfragenummer:** Jede Anfrage erhält beim Anlegen eine Nummer «Jahr-Nummer» (2026-001, …,
+Migration 0006 nummeriert bestehende Anfragen nach). Sie steht im Betreff jeder Antwort
+(«… [Anfrage 2026-042]») und als Zahlungszweck in der Antwort mit Anzahlung. Beim Mail-Import
+hat sie Vorrang vor allen anderen Merkmalen der Zuordnung, weil sie auch Weiterleitungen und
+Antworten von anderen Adressen übersteht. In der Liste lässt sich nach ihr suchen.
+
+**Akzeptieren:** «Zahlung erhalten, akzeptieren» fragt den tatsächlich gutgeschriebenen Betrag
+in CHF ab (z.B. nach Umrechnung einer Zahlung in Euro), dazu Zahlungsart und Datum. Er wird als
+Zahlung zur Anfrage gespeichert und ist die Grundlage für die spätere Rechnung; die verlangte
+Anzahlung bleibt zum Vergleich erhalten. Ohne Betrag wird ohne Anzahlung akzeptiert (z.B.
+Stammgäste). Danach wird die Bestätigung vorbereitet.
+
 Der Text lässt sich anpassen, kopieren bzw. im Mailprogramm öffnen; «Als gesendet markieren»
 speichert ihn im Mailverlauf und setzt den Status. Eigene Antworten, die per BCC/Weiterleitung
 ins Tool-Postfach kommen, gelten als «Antwort mit Anzahlung», wenn sie IBAN oder Anzahlung

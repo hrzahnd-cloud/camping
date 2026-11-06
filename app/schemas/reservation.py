@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from typing import Literal
 
@@ -58,6 +59,7 @@ class StatusAenderung(BaseModel):
 class ReservationsanfrageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
+    nummer: str | None = None
     quelle: str
     eingangs_datum: datetime
     sprache: str
@@ -81,3 +83,8 @@ class ReservationsanfrageOut(BaseModel):
 class ReservationsanfrageDetail(ReservationsanfrageOut):
     """Mit Originaltext der Mail (nur in der Detailansicht, nicht in Listen)."""
     rohtext: str | None = None
+    anzahlung_verlangt: Decimal | None = None
+    anzahlung_erhalten: Decimal | None = None
+    """Summe der gutgeschriebenen Anzahlungen in CHF (Grundlage für die Rechnung)."""
+    anzahlung_eingegangen_am: date | None = None
+    anzahlung_zahlungsart: str | None = None

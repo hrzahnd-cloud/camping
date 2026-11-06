@@ -308,3 +308,13 @@ def test_zeiten_werden_in_utc_gespeichert(db):
     gespeichert = n.datum if n.datum.tzinfo else n.datum.replace(tzinfo=timezone.utc)
     assert gespeichert == datetime(2026, 11, 3, 11, 30, tzinfo=timezone.utc)
     assert anfrage.id == n.reservationsanfrage_id
+
+
+def test_zuordnung_ueber_nummer_im_betreff(db):
+    anfrage = _anfrage_von_anna(db)
+    assert anfrage.nummer
+    # Gast schreibt von anderer Adresse, ohne Mail-Verweise, Nummer steht im Betreff
+    art, zugeordnet = verarbeite_mail(db, _mail("Partner <partner@example.org>",
+                                                f"WG: Re: Ihre Anfrage [Anfrage {anfrage.nummer}]", "Wir bringen einen Hund mit.",
+                                                datum="Fri, 30 Oct 2026 08:00:00 +0100"), EINSTELLUNGEN)
+    assert art == "nachtrag" and zugeordnet.id == anfrage.id

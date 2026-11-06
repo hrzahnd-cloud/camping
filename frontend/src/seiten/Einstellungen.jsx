@@ -36,6 +36,9 @@ const VORLAGENTYPEN = [
   { typ: "freie_antwort", name: "Freie Antwort",
     hinweis: "Rahmen für Antworten auf Fragen des Gastes, ohne Anzahlung: Anrede, Platz für Ihren Text, Gruss und Signatur. Der eigene Text kommt nach der ersten Leerzeile.",
     vorschau: "Mit einer erfundenen Anfrage und der Gastfrage «Sind Hunde erlaubt?» als letztem Betreff." },
+  { typ: "bestaetigung_definitiv", name: "Bestätigung definitiv",
+    hinweis: "Bestätigung nach dem Akzeptieren, dass die Reservation definitiv gebucht ist. «{{zahlungsbestaetigung}}» dankt für die gutgeschriebene Anzahlung und bleibt leer, wenn ohne Anzahlung akzeptiert wurde.",
+    vorschau: "Mit einer erfundenen Anfrage und einer gutgeschriebenen Anzahlung von CHF 118.40." },
 ];
 
 function Vorlagen() {
@@ -118,7 +121,7 @@ function Vorlagen() {
             </div>
             <div className="feld">
               <label htmlFor="vorlage-text">Text</label>
-              <textarea id="vorlage-text" ref={textfeld} rows={typ === "freie_antwort" ? 10 : 24} value={entwurf.koerper} onChange={(e) => setEntwurf({ ...entwurf, koerper: e.target.value })} />
+              <textarea id="vorlage-text" ref={textfeld} rows={typ === "erstantwort_zahlungsinfo" ? 24 : 14} value={entwurf.koerper} onChange={(e) => setEntwurf({ ...entwurf, koerper: e.target.value })} />
             </div>
             {meldung && <p className={`meldung ${meldung.art}`} role="status">{meldung.text}</p>}
             <div className="aktionen">

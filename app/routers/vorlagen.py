@@ -85,9 +85,12 @@ def vorlage_vorschau(daten: VorschauAnfrage, db: Session = Depends(get_db)):
     """Vorschau mit einer erfundenen Anfrage und den aktuellen Betriebsangaben."""
     betrieb = am.betriebsangaben(db)
     mit_anzahlung = daten.typ == am.TYP_ERSTANTWORT
-    werte = am.werte_fuer(am.beispiel_anfrage(), daten.sprache, Decimal("120.00") if mit_anzahlung else None,
-                          date(2027, 3, 31) if mit_anzahlung else None, betrieb, "Sind Hunde erlaubt?")
+    beispiel = am.beispiel_anfrage()
+    werte = am.werte_fuer(beispiel, daten.sprache, Decimal("120.00") if mit_anzahlung else None,
+                          date(2027, 3, 31) if mit_anzahlung else None, betrieb, "Sind Hunde erlaubt?",
+                          Decimal("118.40") if daten.typ == am.TYP_BESTAETIGUNG else None)
     betreff, u1 = am.ersetze(daten.betreff, werte)
+    betreff = am.betreff_mit_nummer(betreff, beispiel.nummer, daten.sprache)
     text, u2 = am.ersetze(daten.koerper, werte)
     return Vorschau(betreff=betreff, text=text, unbekannte_platzhalter=sorted(set(u1 + u2)),
                     warnungen=am.warnungen_betrieb(betrieb, daten.typ))

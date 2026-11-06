@@ -14,21 +14,28 @@ const ABLAGEN = [
   { code: "alle", name: "Alle", status: null },
 ];
 
+const AKZEPTIEREN = "akzeptieren";
+const ERST = "erstantwort_zahlungsinfo";
+const BESTAETIGUNG = "bestaetigung_definitiv";
+const ZAHLUNGSARTEN = { bankueberweisung: "Banküberweisung", twint: "TWINT", bar: "Bar", kreditkarte: "Kreditkarte" };
+const chf = (x) => `CHF ${Number(x).toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 // Nächste sinnvolle Schritte je Status (Konzept 10.2–10.5)
 const SCHRITTE = {
   neu: [],
   unvollstaendig: [["abgelehnt", "Ablehnen", "leise"]],
-  geprueft_vollstaendig: [["erstantwort_gesendet", "Schon beantwortet", "neben"], ["abgelehnt", "Ablehnen", "leise"]],
-  in_abklaerung: [["erstantwort_gesendet", "Anzahlung schon angefordert", "neben"], ["abgelehnt", "Ablehnen", "leise"]],
-  erstantwort_gesendet: [["zahlung_ausstehend", "Wartet auf Zahlung", "neben"], ["bezahlt_akzeptiert", "Zahlung erhalten, akzeptieren", "haupt"], ["abgelehnt", "Ablehnen", "leise"]],
-  zahlung_ausstehend: [["bezahlt_akzeptiert", "Zahlung erhalten, akzeptieren", "haupt"], ["storniert", "Stornieren", "leise"]],
+  // AKZEPTIEREN öffnet das Formular mit dem gutgeschriebenen Betrag
+  geprueft_vollstaendig: [["erstantwort_gesendet", "Schon beantwortet", "neben"], [AKZEPTIEREN, "Ohne Anzahlung akzeptieren", "leise"], ["abgelehnt", "Ablehnen", "leise"]],
+  in_abklaerung: [["erstantwort_gesendet", "Anzahlung schon angefordert", "neben"], [AKZEPTIEREN, "Ohne Anzahlung akzeptieren", "leise"], ["abgelehnt", "Ablehnen", "leise"]],
+  erstantwort_gesendet: [["zahlung_ausstehend", "Wartet auf Zahlung", "neben"], [AKZEPTIEREN, "Zahlung erhalten, akzeptieren", "haupt"], ["abgelehnt", "Ablehnen", "leise"]],
+  zahlung_ausstehend: [[AKZEPTIEREN, "Zahlung erhalten, akzeptieren", "haupt"], ["storniert", "Stornieren", "leise"]],
   bezahlt_akzeptiert: [["storniert", "Stornieren", "leise"]],
   abgelehnt: [["neu", "Wieder öffnen", "neben"]],
   storniert: [["neu", "Wieder öffnen", "neben"]],
 };
 
 // wie _STATUS_NUR_VOLLSTAENDIG im Backend
-const NUR_VOLLSTAENDIG = new Set(["erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert"]);
+const NUR_VOLLSTAENDIG = new Set(["erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert", AKZEPTIEREN]);
 
 const LEER = {
   quelle: "manuell", sprache: "de", gast_name: "", gast_email: "", gast_telefon: "",
@@ -62,9 +69,10 @@ export default function Reservationen() {
 
   const liste = useMemo(() => {
     const s = suche.trim().toLowerCase();
+    // mit Suchbegriff: in allen Ablagen suchen (z.B. Gast nennt am Telefon die Nummer)
     return (anfragen || [])
-      .filter((a) => inAblage(ablage, a))
-      .filter((a) => !s || `${a.gast_name} ${a.gast_email}`.toLowerCase().includes(s));
+      .filter((a) => s || inAblage(ablage, a))
+      .filter((a) => !s || `${a.nummer ?? ""} ${a.gast_name} ${a.gast_email}`.toLowerCase().includes(s));
   }, [anfragen, ablage, suche]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nachSpeichern = (anfrage) => { laden(); setAuswahl(anfrage.id); };
@@ -92,10 +100,12 @@ export default function Reservationen() {
         <section className="postfach" aria-label="Anfragen">
           <label className="suchfeld">
             <Search size={16} aria-hidden="true" />
-            <input type="search" placeholder="Name oder E-Mail suchen" value={suche} onChange={(e) => setSuche(e.target.value)} />
+            <input type="search" placeholder="Name, E-Mail oder Nummer suchen" value={suche} onChange={(e) => setSuche(e.target.value)} />
           </label>
           {anfragen === null && <p className="leer">Wird geladen …</p>}
-          {anfragen && liste.length === 0 && (
+          {suche.trim() && <p className="hinweis">Suche in allen Ablagen.</p>}
+          {anfragen && liste.length === 0 && suche.trim() && <p className="leer">Keine Anfrage gefunden.</p>}
+          {anfragen && liste.length === 0 && !suche.trim() && (
             <p className="leer">Keine Anfragen in dieser Ablage. Neue Anfragen aus dem Postfach oder per Telefon erscheinen unter «Zu bearbeiten».</p>
           )}
           <ul className="anfrageliste">
@@ -103,7 +113,7 @@ export default function Reservationen() {
               <li key={a.id}>
                 <button className="anfrage" aria-current={auswahl === a.id ? "true" : undefined} onClick={() => setAuswahl(a.id)}>
                   <span className="zeile1">
-                    <strong>{a.gast_name}</strong>
+                    <strong>{a.gast_name}{a.nummer && <span className="nummer">{a.nummer}</span>}</strong>
                     <span className="marken">
                       {a.neue_mails > 0 && <span className="marke-neu">{a.neue_mails === 1 ? "Neue Mail" : `${a.neue_mails} neue Mails`}</span>}
                       <StatusMarke status={a.status} />
@@ -164,8 +174,11 @@ function Mailtext({ onGespeichert, onAbbrechen }) {
 
 const FREI = "freie_antwort";
 
+const ANTWORT_TITEL = { [ERST]: "Antwort mit Anzahlung", [FREI]: "Freie Antwort", [BESTAETIGUNG]: "Bestätigung" };
+
 function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
   const frei = typ === FREI;
+  const sofort = typ !== ERST; // ohne Eingaben: Text gleich erstellen
   const [eingabe, setEingabe] = useState({ sprache: anfrage.sprache || "de", betrag: "", zahlungsfrist: "" });
   const [entwurf, setEntwurf] = useState(null);
   const [fehler, setFehler] = useState(null);
@@ -179,8 +192,8 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
   const vorbereiten = useCallback(async (werte, eigenerText = "") => {
     setFehler(null); setLaeuft(true);
     try {
-      const e = await api.post(`/reservationsanfragen/${anfrage.id}/antwort/vorbereiten`, frei
-        ? { typ: FREI, sprache: werte.sprache }
+      const e = await api.post(`/reservationsanfragen/${anfrage.id}/antwort/vorbereiten`, sofort
+        ? { typ, sprache: werte.sprache }
         : { sprache: werte.sprache, betrag: werte.betrag, zahlungsfrist: werte.zahlungsfrist || null });
       if (frei && e.einfuege_position != null) {
         // Platz für den eigenen Text zwischen Anrede und Gruss
@@ -191,10 +204,10 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
       }
       setEntwurf(e);
     } catch (err) { setFehler(err.message); } finally { setLaeuft(false); }
-  }, [anfrage.id, frei]);
+  }, [anfrage.id, frei, sofort, typ]);
 
-  // Freie Antwort: Text sofort erstellen
-  useEffect(() => { if (frei) vorbereiten({ sprache: anfrage.sprache || "de" }); }, [frei, vorbereiten, anfrage.sprache]);
+  // Freie Antwort und Bestätigung: Text sofort erstellen
+  useEffect(() => { if (sofort) vorbereiten({ sprache: anfrage.sprache || "de" }); }, [sofort, vorbereiten, anfrage.sprache]);
 
   useEffect(() => {
     if (entwurf && cursor.current != null && textfeld.current) {
@@ -207,7 +220,8 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
   const spracheWechseln = (sprache) => {
     const werte = { ...eingabe, sprache };
     setEingabe(werte);
-    if (!frei) return;
+    if (!sofort) return;
+    if (!frei) { vorbereiten(werte); return; }
     // Bereits geschriebenen Text zwischen Anrede und Gruss übernehmen
     let eigenerText = "";
     const b = basis.current;
@@ -231,17 +245,24 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
     try {
       onGesendet(await api.post(`/reservationsanfragen/${anfrage.id}/antwort/gesendet`, {
         vorlage_id: entwurf.vorlage_id, betreff: entwurf.betreff, text: entwurf.text,
+        betrag: typ === ERST ? eingabe.betrag : null,
       }));
     } catch (err) { setFehler(err.message); } finally { setLaeuft(false); }
   };
 
-  const neuerStatus = frei
-    ? (["erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert"].includes(anfrage.status) ? null : "In Abklärung")
-    : "Antwort gesendet";
+  const neuerStatus = typ === BESTAETIGUNG ? null
+    : frei ? (["erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert"].includes(anfrage.status) ? null : "In Abklärung")
+      : "Antwort gesendet";
 
   return (
     <div className="formular">
-      <h2>{frei ? "Freie Antwort" : "Antwort mit Anzahlung"} an {anfrage.gast_name}</h2>
+      <h2>{ANTWORT_TITEL[typ]} an {anfrage.gast_name}{anfrage.nummer && <span className="nummer"> · {anfrage.nummer}</span>}</h2>
+      {typ === BESTAETIGUNG && (
+        <p className="hinweis">
+          Bestätigt dem Gast, dass die Reservation definitiv gebucht ist
+          {anfrage.anzahlung_erhalten ? `, mit Dank für die Anzahlung von ${chf(anfrage.anzahlung_erhalten)}` : ""}.
+        </p>
+      )}
       {frei && (
         <p className="hinweis">
           Für Fragen des Gastes, ohne Aufforderung zur Anzahlung: Anrede, Ihr Text und die Signatur. Beim Wechsel der
@@ -265,7 +286,7 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
             </label>
           </>
         )}
-        {(!frei || !entwurf) && (
+        {(!sofort || !entwurf) && (
           <div className="aktionen breit">
             {!frei && <button className="knopf haupt" type="submit" disabled={laeuft}>{entwurf ? "Text neu erstellen" : "Text erstellen"}</button>}
             <button className="knopf leise" type="button" onClick={onAbbrechen}>Abbrechen</button>
@@ -294,7 +315,7 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
           </div>
           <div className="aktionen">
             <button className="knopf haupt" type="button" disabled={laeuft} onClick={gesendet}>Als gesendet markieren</button>
-            {frei && <button className="knopf leise" type="button" onClick={onAbbrechen}>Abbrechen</button>}
+            {sofort && <button className="knopf leise" type="button" onClick={onAbbrechen}>{typ === BESTAETIGUNG ? "Später" : "Abbrechen"}</button>}
           </div>
           <p className="hinweis">
             «Als gesendet markieren» speichert den Text im Mailverlauf der Anfrage
@@ -303,6 +324,74 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
         </>
       )}
     </div>
+  );
+}
+
+function Akzeptieren({ anfrage, onAkzeptiert, onAbbrechen }) {
+  const mitAnzahlung = ["erstantwort_gesendet", "zahlung_ausstehend"].includes(anfrage.status);
+  const heute = new Date().toLocaleDateString("sv-SE");
+  const [werte, setWerte] = useState({
+    betrag: mitAnzahlung && anfrage.anzahlung_verlangt ? anfrage.anzahlung_verlangt : "",
+    zahlungsart: "bankueberweisung", eingegangen_am: heute,
+  });
+  const [fehler, setFehler] = useState(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const betrag = Number(werte.betrag) || 0;
+
+  const absenden = async (e) => {
+    e.preventDefault(); setFehler(null); setLaeuft(true);
+    try {
+      onAkzeptiert(await api.post(`/reservationsanfragen/${anfrage.id}/zahlung-bestaetigen`, betrag > 0
+        ? { betrag: werte.betrag, zahlungsart: werte.zahlungsart, eingegangen_am: werte.eingegangen_am || null }
+        : {}));
+    } catch (err) { setFehler(err.message); } finally { setLaeuft(false); }
+  };
+
+  return (
+    <form className="formular" onSubmit={absenden}>
+      <h2>Reservation akzeptieren{anfrage.nummer && <span className="nummer"> · {anfrage.nummer}</span>}</h2>
+      <p className="hinweis">
+        {anfrage.gast_name}, {zeitraum(anfrage.gewuenscht_von, anfrage.gewuenscht_bis)}.
+        {anfrage.anzahlung_verlangt ? ` Verlangt wurden ${chf(anfrage.anzahlung_verlangt)}.` : ""}
+      </p>
+      <p id="akz-betrag-hinweis" className="hinweis">
+        Erfassen Sie den Betrag, der auf dem Konto gutgeschrieben wurde, z.B. nach Umrechnung einer Zahlung in Euro.
+        Leer lassen, wenn ohne Anzahlung akzeptiert wird (z.B. Stammgäste).
+      </p>
+      <div className="felder">
+        <div className="feld">
+          <label htmlFor="akz-betrag">Gutgeschriebene Anzahlung in CHF</label>
+          <input id="akz-betrag" type="number" min="0" step="0.01" inputMode="decimal" value={werte.betrag}
+            aria-describedby="akz-betrag-hinweis" onChange={(e) => setWerte({ ...werte, betrag: e.target.value })} />
+        </div>
+        {betrag > 0 && (
+          <>
+            <label>Zahlungsart
+              <select value={werte.zahlungsart} onChange={(e) => setWerte({ ...werte, zahlungsart: e.target.value })}>
+                {Object.entries(ZAHLUNGSARTEN).map(([c, n]) => <option key={c} value={c}>{n}</option>)}
+              </select>
+            </label>
+            <label>Eingegangen am
+              <input type="date" value={werte.eingegangen_am} max={heute} onChange={(e) => setWerte({ ...werte, eingegangen_am: e.target.value })} />
+            </label>
+          </>
+        )}
+      </div>
+      {betrag > 0 && anfrage.anzahlung_verlangt && Math.abs(betrag - Number(anfrage.anzahlung_verlangt)) >= 0.005 && (
+        <p className="betrag-hinweis">
+          {chf(Math.abs(betrag - Number(anfrage.anzahlung_verlangt)))} {betrag < Number(anfrage.anzahlung_verlangt) ? "weniger" : "mehr"} als
+          verlangt. Für die Rechnung gilt der gutgeschriebene Betrag.
+        </p>
+      )}
+      {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
+      <div className="aktionen">
+        <button className="knopf haupt" type="submit" disabled={laeuft}>
+          {betrag > 0 ? `${chf(betrag)} erhalten, akzeptieren` : "Ohne Anzahlung akzeptieren"}
+        </button>
+        <button className="knopf leise" type="button" onClick={onAbbrechen}>Abbrechen</button>
+      </div>
+      <p className="hinweis">Danach wird die Bestätigung an den Gast vorbereitet («definitiv gebucht»).</p>
+    </form>
   );
 }
 
@@ -334,6 +423,7 @@ function Detail({ id, onGeaendert }) {
   const [anfrage, setAnfrage] = useState(null);
   const [bearbeiten, setBearbeiten] = useState(false);
   const [antworten, setAntworten] = useState(null); // null | Vorlagentyp
+  const [akzeptieren, setAkzeptieren] = useState(false);
   const [mails, setMails] = useState([]);
   const [fehler, setFehler] = useState(null);
   const [laeuft, setLaeuft] = useState(false);
@@ -361,6 +451,15 @@ function Detail({ id, onGeaendert }) {
 
   if (fehler && !anfrage) return <p className="meldung fehler">{fehler}</p>;
   if (!anfrage) return <p className="leer">Wird geladen …</p>;
+  if (akzeptieren) {
+    return (
+      <Akzeptieren
+        anfrage={anfrage}
+        onAkzeptiert={(a) => { setAnfrage(a); setAkzeptieren(false); onGeaendert(); setAntworten(BESTAETIGUNG); }}
+        onAbbrechen={() => setAkzeptieren(false)}
+      />
+    );
+  }
   if (antworten) {
     return (
       <Antwort
@@ -386,6 +485,7 @@ function Detail({ id, onGeaendert }) {
     <article className="karte-detail">
       <header>
         <h2>{anfrage.gast_name}</h2>
+        {anfrage.nummer && <span className="nummer">Nr. {anfrage.nummer}</span>}
         <StatusMarke status={anfrage.status} />
       </header>
       {!anfrage.vollstaendig && (
@@ -401,14 +501,30 @@ function Detail({ id, onGeaendert }) {
         <dt>Sprache</dt><dd>{SPRACHEN[anfrage.sprache] ?? anfrage.sprache}</dd>
         <dt>Eingang</dt><dd>{new Date(anfrage.eingangs_datum).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" })}, {QUELLEN[anfrage.quelle] ?? anfrage.quelle}</dd>
         <dt>Newsletter</dt><dd>{anfrage.newsletter_einwilligung ? "eingewilligt" : "nein"}</dd>
+        {(anfrage.anzahlung_verlangt || anfrage.anzahlung_erhalten || anfrage.status === "bezahlt_akzeptiert") && (
+          <>
+            <dt>Anzahlung</dt>
+            <dd>
+              {anfrage.anzahlung_erhalten
+                ? `${chf(anfrage.anzahlung_erhalten)} erhalten${anfrage.anzahlung_eingegangen_am ? ` am ${datumVoll(anfrage.anzahlung_eingegangen_am)}` : ""}${anfrage.anzahlung_zahlungsart ? ` (${ZAHLUNGSARTEN[anfrage.anzahlung_zahlungsart] ?? anfrage.anzahlung_zahlungsart})` : ""}`
+                : anfrage.status === "bezahlt_akzeptiert" ? "keine (ohne Anzahlung akzeptiert)" : "noch nicht eingegangen"}
+              {anfrage.anzahlung_verlangt ? `, verlangt ${chf(anfrage.anzahlung_verlangt)}` : ""}
+            </dd>
+          </>
+        )}
         {anfrage.bemerkung && (<><dt>Bemerkung</dt><dd className="mehrzeilig">{anfrage.bemerkung}</dd></>)}
       </dl>
 
       <div className="aktionen">
         {anfrage.vollstaendig && ["geprueft_vollstaendig", "in_abklaerung", "erstantwort_gesendet", "zahlung_ausstehend"].includes(anfrage.status) && (
           <button className={`knopf ${["geprueft_vollstaendig", "in_abklaerung"].includes(anfrage.status) ? "haupt" : "neben"}`}
-            onClick={() => setAntworten("erstantwort_zahlungsinfo")}>
+            onClick={() => setAntworten(ERST)}>
             <Mail size={18} aria-hidden="true" />Antwort mit Anzahlung
+          </button>
+        )}
+        {anfrage.status === "bezahlt_akzeptiert" && (
+          <button className="knopf neben" onClick={() => setAntworten(BESTAETIGUNG)}>
+            <Mail size={18} aria-hidden="true" />Bestätigung vorbereiten
           </button>
         )}
         {!["abgelehnt", "storniert"].includes(anfrage.status) && (
@@ -417,7 +533,8 @@ function Detail({ id, onGeaendert }) {
           </button>
         )}
         {(SCHRITTE[anfrage.status] || []).filter(([status]) => anfrage.vollstaendig || !NUR_VOLLSTAENDIG.has(status)).map(([status, text, art]) => (
-          <button key={status} className={`knopf ${art}`} disabled={laeuft} onClick={() => statusSetzen(status)}>{text}</button>
+          <button key={status} className={`knopf ${art}`} disabled={laeuft}
+            onClick={() => (status === AKZEPTIEREN ? setAkzeptieren(true) : statusSetzen(status))}>{text}</button>
         ))}
         <button className="knopf neben" onClick={() => setBearbeiten(true)}>Bearbeiten</button>
       </div>
