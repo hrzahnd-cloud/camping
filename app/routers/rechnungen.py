@@ -9,11 +9,11 @@ eine fachliche Entscheidung, die im Detail noch mit euch abzustimmen
 ist. Die Preisfindung je Position (Saison, MWST) übernimmt das System.
 """
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
-from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -23,20 +23,14 @@ from app.models.buchung import Buchung
 from app.models.rechnung import Rechnung, Rechnungsposition
 from app.schemas.rechnung import RechnungOut, RechnungspositionCreate
 from app.services.mwst import mwst_betrag_aus_brutto, prozent_fuer_artikel
-from app.services.pdf_rechnung import (
-    RechnungsDaten,
-    RechnungsPositionZeile,
-    erzeuge_rechnung_pdf,
-)
+from app.services import antwortmail as am
+from app.services import rechnung_aufenthalt as ra
+from app.services.pdf_rechnung import RechnungsDaten, RechnungsPositionZeile, rechnung_pdf
 from app.services.rechnungsnummer import naechste_rechnungsnummer
 from app.services.taxen import berechne_taxen_fuer_buchung
 
 router = APIRouter(prefix="/rechnungen", tags=["Rechnungen"])
 
-# Ablageort für generierte Rechnungs-PDFs. In Produktion durch die
-# Infrastruktur-Fachpersonen an einen dauerhaften Speicherort (z.B.
-# Objektspeicher) anzubinden – hier bewusst simpel gehalten.
-PDF_VERZEICHNIS = Path("./generierte_dokumente/rechnungen")
 
 
 def _ermittle_preis_und_mwst(db: Session, artikel: Artikel, stichtag: date) -> tuple[Decimal, Decimal]:
@@ -182,6 +176,182 @@ def rechnung_erstellen(
     ).scalar_one()
 
 
+# --- Rechnungen aus dem Aufenthalt (Modul «Rechnungen») ------------------------------
+
+class RechnungsZeile(BaseModel):
+    id: uuid.UUID
+    nummer: str
+    datum: date
+    status: str
+    gast_name: str
+    buchung_id: uuid.UUID
+    von: date
+    bis: date
+    reservationsnummer: str | None
+    gesamtbetrag: str
+    anzahlung: str
+    restbetrag: str
+    zahlungsart: str | None
+    bezahlt_am: date | None
+
+
+class PositionText(BaseModel):
+    bezeichnung: str
+    menge: str
+    einzelpreis: str
+    betrag: str
+    mwstsatz_prozent: str
+
+
+class RechnungDetail(RechnungsZeile):
+    mwst_betrag_total: str
+    positionen: list[PositionText]
+    storniert_am: datetime | None
+
+
+class ErstellenDaten(BaseModel):
+    zahlungsart: str | None = None
+    """bar | twint | karte | ueberweisung; leer = offen (Gast überweist später)."""
+
+
+class BezahltDaten(BaseModel):
+    zahlungsart: str
+    datum: date | None = None
+
+
+class Zahlungseinstellungen(BaseModel):
+    karte: bool
+    zahlungsarten: list[str] = []
+
+
+def _geld(x) -> str:
+    return str(Decimal(str(x or 0)).quantize(Decimal("0.01")))
+
+
+def _zeile(db: Session, r: Rechnung) -> RechnungsZeile:
+    from app.models.reservation import Reservationsanfrage
+    b = r.buchung
+    anfrage = db.get(Reservationsanfrage, b.reservationsanfrage_id) if b.reservationsanfrage_id else None
+    return RechnungsZeile(
+        id=r.id, nummer=r.nummer, datum=r.datum, status=r.status, gast_name=f"{r.kunde.vorname} {r.kunde.nachname}",
+        buchung_id=b.id, von=b.von, bis=b.bis, reservationsnummer=anfrage.nummer if anfrage else None,
+        gesamtbetrag=_geld(r.gesamtbetrag), anzahlung=_geld(r.anzahlung), restbetrag=_geld(r.restbetrag),
+        zahlungsart=r.zahlungsart, bezahlt_am=r.bezahlt_am)
+
+
+def _detail(db: Session, r: Rechnung) -> RechnungDetail:
+    return RechnungDetail(
+        **_zeile(db, r).model_dump(), mwst_betrag_total=_geld(r.mwst_betrag_total), storniert_am=r.storniert_am,
+        positionen=[PositionText(bezeichnung=p.bezeichnung or p.artikel.bezeichnung, menge=str(Decimal(str(p.menge)).normalize()),
+                                 einzelpreis=_geld(p.einzelpreis), betrag=_geld(p.betrag),
+                                 mwstsatz_prozent=str(Decimal(str(p.mwstsatz_prozent)).normalize()))
+                    for p in r.positionen])
+
+
+def _rechnung(db: Session, rechnung_id: uuid.UUID) -> Rechnung:
+    r = db.execute(select(Rechnung).options(selectinload(Rechnung.positionen).selectinload(Rechnungsposition.artikel))
+                   .where(Rechnung.id == rechnung_id)).scalar_one_or_none()
+    if not r:
+        raise HTTPException(404, "Rechnung nicht gefunden")
+    return r
+
+
+@router.get("/einstellungen", response_model=Zahlungseinstellungen)
+def zahlungseinstellungen(db: Session = Depends(get_db)):
+    return Zahlungseinstellungen(karte=ra.karte_aktiv(db), zahlungsarten=ra.erlaubte_zahlungsarten(db))
+
+
+@router.put("/einstellungen", response_model=Zahlungseinstellungen)
+def zahlungseinstellungen_setzen(daten: Zahlungseinstellungen, db: Session = Depends(get_db)):
+    ra.karte_setzen(db, daten.karte)
+    return zahlungseinstellungen(db)
+
+
+@router.get("/liste", response_model=list[RechnungsZeile])
+def rechnungen_auflisten(status: str | None = None, jahr: int | None = None, db: Session = Depends(get_db)):
+    """Rechnungen, neueste zuerst; optional nach Status (offen | bezahlt | storniert) und Jahr."""
+    stmt = select(Rechnung).order_by(Rechnung.datum.desc(), Rechnung.nummer.desc())
+    if status:
+        stmt = stmt.where(Rechnung.status == status)
+    if jahr:
+        stmt = stmt.where(Rechnung.datum >= date(jahr, 1, 1), Rechnung.datum <= date(jahr, 12, 31))
+    return [_zeile(db, r) for r in db.execute(stmt).scalars()]
+
+
+@router.post("/aus-aufenthalt/{buchung_id}", response_model=RechnungDetail, status_code=201)
+def aus_aufenthalt(buchung_id: uuid.UUID, daten: ErstellenDaten | None = None, db: Session = Depends(get_db)):
+    """Rechnung bei der Abreise: Leistungen, Taxen, Anzahlung abgezogen; bar/TWINT sofort bezahlt."""
+    b = db.get(Buchung, buchung_id)
+    if not b:
+        raise HTTPException(404, "Aufenthalt nicht gefunden")
+    try:
+        r = ra.erstellen(db, b, daten.zahlungsart if daten else None)
+    except ra.RechnungFehler as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
+    return _detail(db, _rechnung(db, r.id))
+
+
+@router.get("/details/{rechnung_id}", response_model=RechnungDetail)
+def rechnung_detail(rechnung_id: uuid.UUID, db: Session = Depends(get_db)):
+    return _detail(db, _rechnung(db, rechnung_id))
+
+
+@router.post("/{rechnung_id}/bezahlt", response_model=RechnungDetail)
+def als_bezahlt(rechnung_id: uuid.UUID, daten: BezahltDaten, db: Session = Depends(get_db)):
+    try:
+        ra.bezahlen(db, _rechnung(db, rechnung_id), daten.zahlungsart, daten.datum)
+    except ra.RechnungFehler as exc:
+        raise HTTPException(400, str(exc))
+    return _detail(db, _rechnung(db, rechnung_id))
+
+
+@router.post("/{rechnung_id}/stornieren", response_model=RechnungDetail)
+def stornieren(rechnung_id: uuid.UUID, db: Session = Depends(get_db)):
+    try:
+        ra.stornieren(db, _rechnung(db, rechnung_id))
+    except ra.RechnungFehler as exc:
+        raise HTTPException(400, str(exc))
+    return _detail(db, _rechnung(db, rechnung_id))
+
+
+def _pdf_daten(db: Session, r: Rechnung) -> RechnungsDaten:
+    from app.models.reservation import Reservationsanfrage
+    betrieb = am.betriebsangaben(db)
+    g, b = r.kunde, r.buchung
+    anfrage = db.get(Reservationsanfrage, b.reservationsanfrage_id) if b.reservationsanfrage_id else None
+    kunde = [f"{g.vorname} {g.nachname}", g.strasse or "", " ".join(x for x in (g.plz, g.ort) if x), g.land if g.land and g.land != "CH" else ""]
+    if r.status == "bezahlt":
+        art = ra.ZAHLUNGSARTEN.get(r.zahlungsart or "", "")
+        vermerk = (f"Bezahlt am {r.bezahlt_am.strftime('%d.%m.%Y')}" + (f", {art}" if art else " (mit der Anzahlung)") + ". Vielen Dank!"
+                   if r.bezahlt_am else "Bezahlt. Vielen Dank!")
+    elif r.status == "offen":
+        teile = ["Bitte überweisen Sie den Restbetrag innert 30 Tagen" + (f" mit dem Vermerk «Rechnung {r.nummer}»." if r.nummer else ".")]
+        if betrieb.get("iban"):
+            teile.append("IBAN " + betrieb["iban"] + (f", BIC {betrieb['bic']}" if betrieb.get("bic") else "")
+                         + (f", {betrieb['kontoinhaber']}" if betrieb.get("kontoinhaber") else ""))
+        vermerk = "\n".join(teile)
+    else:
+        vermerk = "Diese Rechnung wurde storniert."
+    return RechnungsDaten(
+        nummer=r.nummer, datum=r.datum.strftime("%d.%m.%Y"), kunde_zeilen=[z for z in kunde if z],
+        leistungszeitraum=f"{b.von.strftime('%d.%m.%Y')} – {b.bis.strftime('%d.%m.%Y')} ({(b.bis - b.von).days} Nächte)",
+        absender_zeilen=[z for z in (betrieb.get("rechnung_absender") or "").split("\n") if z.strip()],
+        mwst_nummer=betrieb.get("mwst_nummer", ""), reservation=anfrage.nummer if anfrage else "",
+        positionen=[RechnungsPositionZeile(bezeichnung=p.bezeichnung or p.artikel.bezeichnung, menge=Decimal(str(p.menge)),
+                                           einzelpreis=Decimal(str(p.einzelpreis)), betrag=Decimal(str(p.betrag)),
+                                           mwstsatz_prozent=Decimal(str(p.mwstsatz_prozent))) for p in r.positionen],
+        gesamtbetrag=Decimal(str(r.gesamtbetrag)), anzahlung=Decimal(str(r.anzahlung or 0)),
+        zahlungsvermerk=vermerk, storniert=r.status == "storniert")
+
+
+@router.get("/{rechnung_id}/pdf")
+def rechnung_als_pdf(rechnung_id: uuid.UUID, db: Session = Depends(get_db)):
+    r = _rechnung(db, rechnung_id)
+    return Response(rechnung_pdf(_pdf_daten(db, r)), media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="Rechnung-{r.nummer}.pdf"'})
+
+
 @router.get("/{rechnung_id}", response_model=RechnungOut)
 def rechnung_lesen(rechnung_id: uuid.UUID, db: Session = Depends(get_db)):
     rechnung = db.execute(
@@ -192,48 +362,3 @@ def rechnung_lesen(rechnung_id: uuid.UUID, db: Session = Depends(get_db)):
     if not rechnung:
         raise HTTPException(404, "Rechnung nicht gefunden")
     return rechnung
-
-
-@router.post("/{rechnung_id}/pdf-erzeugen")
-def pdf_erzeugen(rechnung_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Rendert die Rechnung als PDF (Konzept Abschnitt 12.1) und speichert den Pfad."""
-    rechnung = db.execute(
-        select(Rechnung)
-        .options(
-            selectinload(Rechnung.positionen).selectinload(Rechnungsposition.artikel),
-            selectinload(Rechnung.kunde),
-        )
-        .where(Rechnung.id == rechnung_id)
-    ).scalar_one_or_none()
-    if not rechnung:
-        raise HTTPException(404, "Rechnung nicht gefunden")
-
-    daten = RechnungsDaten(
-        nummer=rechnung.nummer,
-        datum=rechnung.datum.strftime("%d.%m.%Y"),
-        kunde_name=f"{rechnung.kunde.vorname} {rechnung.kunde.nachname}",
-        kunde_adresse=f"{rechnung.kunde.plz or ''} {rechnung.kunde.ort or ''}".strip(),
-        leistungszeitraum="",  # TODO: aus verknüpften Aufenthalten ableiten
-        betrieb_name="Camping Aeschi",  # TODO: aus Campingplatz-Stammdaten laden
-        betrieb_adresse="",
-        betrieb_mwst_nummer="TODO",
-        positionen=[
-            RechnungsPositionZeile(
-                bezeichnung=p.artikel.bezeichnung,
-                menge=Decimal(str(p.menge)),
-                einzelpreis=Decimal(str(p.einzelpreis)),
-                betrag=Decimal(str(p.betrag)),
-                mwstsatz_prozent=Decimal(str(p.mwstsatz_prozent)),
-            )
-            for p in rechnung.positionen
-        ],
-        gesamtbetrag=Decimal(str(rechnung.gesamtbetrag)),
-    )
-
-    PDF_VERZEICHNIS.mkdir(parents=True, exist_ok=True)
-    ziel_pfad = PDF_VERZEICHNIS / f"{rechnung.nummer}.pdf"
-    erzeuge_rechnung_pdf(daten, str(ziel_pfad))
-
-    rechnung.pdf_pfad = str(ziel_pfad)
-    db.commit()
-    return {"pdf_pfad": str(ziel_pfad)}

@@ -79,6 +79,10 @@ class Preiskontext:
             return None  # saisonaler Artikel ausserhalb der Saison: geschlossen
         return self.preise.get((a.id, None))
 
+    def ist_saisonal(self, code: str) -> bool:
+        a = self.artikel.get(code)
+        return a is not None and any(k[0] == a.id and k[1] is not None for k in self.preise)
+
     def mwst(self, code: str, tag: date) -> Decimal | None:
         from app.services.mwst import prozent_fuer_artikel
         a = self.artikel.get(code)
@@ -103,6 +107,9 @@ class ZeilenPreis:
     naechte_ohne_preis: int = 0
     mwst_prozent: Decimal | None = None
     hinweis: str | None = None
+    teile: list[list] = field(default_factory=list)
+    """[[saison_typ|None, einzelpreis, menge], …] – für Rechnungszeilen je Saison und Preis."""
+    artikel_code: str | None = None
 
     @property
     def einzelpreis(self) -> Decimal | None:
@@ -136,7 +143,8 @@ def berechne(db: Session, b: Buchung, art_code) -> Preisrechnung:
     zeilen, mwst_total = [], NULL
     for z in sorted(b.leistungen, key=lambda z: (z.von, z.art)):
         code = art_code(z.art)
-        zp = ZeilenPreis(leistung_id=z.id, bezeichnung=lst.ART[z.art].bezeichnung if z.art in lst.ART else z.art)
+        zp = ZeilenPreis(leistung_id=z.id, bezeichnung=lst.ART[z.art].bezeichnung if z.art in lst.ART else z.art,
+                         artikel_code=code)
         tage = [z.von] if lst.ist_stueck(z.art) else [z.von + timedelta(days=i) for i in range(z.naechte)]
         for tag in tage:
             p = ctx.preis(code, tag)
@@ -147,6 +155,12 @@ def berechne(db: Session, b: Buchung, art_code) -> Preisrechnung:
                 continue
             if p not in zp.einzelpreise:
                 zp.einzelpreise.append(p)
+            saison = ctx.saison_am(tag)
+            styp = saison.typ if saison and ctx.ist_saisonal(code) else None
+            if zp.teile and zp.teile[-1][0] == styp and zp.teile[-1][1] == p:
+                zp.teile[-1][2] += z.anzahl
+            else:
+                zp.teile.append([styp, p, z.anzahl])
             anteil = p * z.anzahl
             zp.betrag += anteil
             prozent = ctx.mwst(code, tag)
@@ -161,7 +175,8 @@ def berechne(db: Session, b: Buchung, art_code) -> Preisrechnung:
     abzuege = []
     if b.stellplatz_typ in ("zwaergli", "spycher"):
         name = lst.ART[b.stellplatz_typ].bezeichnung
-        ab = ZeilenPreis(leistung_id=None, bezeichnung=f"Inbegriffen im {name} ({UNTERKUNFT_PERSONEN_INKL} Personen je Nacht)")
+        ab = ZeilenPreis(leistung_id=None, bezeichnung=f"Inbegriffen im {name} ({UNTERKUNFT_PERSONEN_INKL} Personen je Nacht)",
+                         artikel_code=art_code("erwachsene"))
         for tag, (e, k, _kk) in lst.personen_je_nacht(b).items():
             frei = UNTERKUNFT_PERSONEN_INKL
             for art, anzahl in (("erwachsene", e), ("kinder", k)):
@@ -170,7 +185,8 @@ def berechne(db: Session, b: Buchung, art_code) -> Preisrechnung:
                 p = ctx.preis(art_code(art), tag)
                 if n and p:
                     ab.betrag -= p * n
-                    mwst_total -= _mwst_anteil(p * n, ctx.mwst(art_code(art), tag))
+                    ab.mwst_prozent = ctx.mwst(art_code(art), tag)
+                    mwst_total -= _mwst_anteil(p * n, ab.mwst_prozent)
         if ab.betrag:
             abzuege.append(ab)
 

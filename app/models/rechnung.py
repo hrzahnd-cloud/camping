@@ -39,17 +39,28 @@ class Rechnung(Base, IDMixin, TimestampMixin):
     """Format 'JJJJ-XXXX', siehe Rechnungsnummernzaehler."""
     datum: Mapped[date] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(20), default="offen")
-    """offen | bezahlt"""
+    """offen | bezahlt | storniert (Nummer bleibt vergeben, Aufenthalt wieder änderbar)"""
+    anzahlung: Mapped[float] = mapped_column(Numeric(10, 2), default=0, server_default="0")
+    """Bereits erhaltene Anzahlung, auf der Rechnung abgezogen."""
+    zahlungsart: Mapped[str | None] = mapped_column(String(30))
+    """bar | twint | karte | ueberweisung – bei bezahlten Rechnungen"""
+    bezahlt_am: Mapped[date | None] = mapped_column(Date)
+    storniert_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     gesamtbetrag: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     mwst_betrag_total: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     pdf_pfad: Mapped[str | None] = mapped_column(String(500))
     versendet_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    buchung: Mapped["Buchung"] = relationship(back_populates="rechnung")
+    buchung: Mapped["Buchung"] = relationship(back_populates="rechnungen")
     kunde: Mapped["Gast"] = relationship()
     positionen: Mapped[list["Rechnungsposition"]] = relationship(
-        back_populates="rechnung", cascade="all, delete-orphan"
+        back_populates="rechnung", cascade="all, delete-orphan", order_by="Rechnungsposition.reihenfolge"
     )
+
+    @property
+    def restbetrag(self):
+        from decimal import Decimal
+        return Decimal(str(self.gesamtbetrag)) - Decimal(str(self.anzahlung or 0))
 
 
 class Rechnungsposition(Base, IDMixin, TimestampMixin):
@@ -67,6 +78,10 @@ class Rechnungsposition(Base, IDMixin, TimestampMixin):
     betrag: Mapped[float] = mapped_column(Numeric(10, 2))
     mwstsatz_prozent: Mapped[float] = mapped_column(Numeric(5, 2))
     mwst_betrag: Mapped[float] = mapped_column(Numeric(10, 2))
+
+    bezeichnung: Mapped[str | None] = mapped_column(String(200))
+    """Text der Zeile wie auf der Rechnung (z.B. «Erwachsene, Hauptsaison»), Kopie."""
+    reihenfolge: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     rechnung: Mapped["Rechnung"] = relationship(back_populates="positionen")
     artikel: Mapped["Artikel"] = relationship()

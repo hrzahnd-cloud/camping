@@ -11,6 +11,8 @@ BETRIEB = {
     "bic": "TESTCH22",
     "kontoinhaber": "",
     "twint": "",
+    "rechnung_absender": "Muster Camping\nBeispielweg 1\n3700 Spiez",
+    "mwst_nummer": "CHE-000.000.000 MWST",
 }
 
 

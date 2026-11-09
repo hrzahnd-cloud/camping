@@ -83,6 +83,9 @@ class AufenthaltDetail(BaseModel):
     geburtsdatum: date | None = None
     hat_rechnung: bool = False
     reservationsnummer: str | None = None
+    rechnung_id: uuid.UUID | None = None
+    rechnung_nummer: str | None = None
+    rechnung_status: str | None = None
 
 
 def _detail(b: Buchung, db: Session | None = None) -> AufenthaltDetail:
@@ -95,6 +98,8 @@ def _detail(b: Buchung, db: Session | None = None) -> AufenthaltDetail:
         anzahl_kinder=b.anzahl_kinder, anzahl_kleinkinder=b.anzahl_kleinkinder or 0, status=b.status,
         bemerkung=b.bemerkung, geburtsdatum=g.geburtsdatum, hat_rechnung=b.rechnung is not None,
         reservationsnummer=anfrage.nummer if anfrage else None,
+        rechnung_id=b.rechnung.id if b.rechnung else None, rechnung_nummer=b.rechnung.nummer if b.rechnung else None,
+        rechnung_status=b.rechnung.status if b.rechnung else None,
     )
 
 
@@ -270,8 +275,8 @@ def abreise_zuruecknehmen(buchung_id: uuid.UUID, db: Session = Depends(get_db)):
 def loeschen(buchung_id: uuid.UUID, db: Session = Depends(get_db)):
     """Irrtümlich erfassten Aufenthalt löschen; eine zugehörige Reservation ist wieder «akzeptiert»."""
     b = _buchung(db, buchung_id)
-    if b.rechnung is not None:
-        raise HTTPException(400, "Zu diesem Aufenthalt gibt es eine Rechnung – nicht löschbar")
+    if b.rechnungen:
+        raise HTTPException(400, "Zu diesem Aufenthalt gibt es eine Rechnung (auch stornierte bleiben erhalten) – nicht löschbar")
     if b.reservationsanfrage_id:
         anfrage = db.get(Reservationsanfrage, b.reservationsanfrage_id)
         if anfrage and anfrage.status == "angereist":

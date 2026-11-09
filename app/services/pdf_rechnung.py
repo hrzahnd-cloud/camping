@@ -1,25 +1,26 @@
 """
-PDF-Erzeugung für Rechnungen (Konzeptdokument Abschnitt 12.1).
+PDF der Rechnung (Konzeptdokument Abschnitt 12.1), erzeugt bei Bedarf aus den
+gespeicherten Daten der Rechnung – nichts wird auf der Festplatte abgelegt.
 
-Enthält die für Schweizer Rechnungen üblichen Pflichtangaben:
-Rechnungsnummer, Datum, Leistungszeitraum, Aufschlüsselung nach
-MWST-Satz (gesetzlich vorgeschrieben bei mehreren Steuersätzen auf
-einer Rechnung), Zahlungsinformationen.
+Pflichtangaben für Schweizer Rechnungen: Absender mit MWST-Nummer, Empfänger,
+Rechnungsnummer und -datum, Leistungszeitraum, Positionen mit MWST-Satz,
+Aufschlüsselung der MWST je Satz. Taxen (Kurtaxe, Beherbergungsabgabe) sind
+durchlaufende Posten ohne MWST.
 
-Reines Layout/Rendering – die eigentlichen Daten (Rechnung,
-Rechnungspositionen, Kunde) werden vom Aufrufer übergeben, damit
-dieses Modul unabhängig von der DB-Session testbar bleibt.
+Reines Layout: die Daten übergibt der Aufrufer (testbar ohne Datenbank).
 """
 from dataclasses import dataclass, field
 from decimal import Decimal
+from io import BytesIO
 
-from reportlab.lib.colors import HexColor, black, white
+from reportlab.lib.colors import HexColor, black
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-DARK = HexColor("#1f2d24")
-ACCENT = HexColor("#3a6b4c")
-LIGHT_LINE = HexColor("#c9d2cc")
+TIEFSEE = HexColor("#143040")
+LEISE = HexColor("#56646b")
+LINIE = HexColor("#d6dfe2")
+NEBEL = HexColor("#eef2f3")
 
 
 @dataclass
@@ -35,96 +36,142 @@ class RechnungsPositionZeile:
 class RechnungsDaten:
     nummer: str
     datum: str
-    kunde_name: str
-    kunde_adresse: str
+    kunde_zeilen: list[str]
     leistungszeitraum: str
-    betrieb_name: str
-    betrieb_adresse: str
-    betrieb_mwst_nummer: str
+    absender_zeilen: list[str]
+    mwst_nummer: str = ""
+    reservation: str = ""
     positionen: list[RechnungsPositionZeile] = field(default_factory=list)
     gesamtbetrag: Decimal = Decimal("0")
-    zahlungshinweis: str = ""
+    anzahlung: Decimal = Decimal("0")
+    anzahlung_text: str = "Anzahlung erhalten"
+    zahlungsvermerk: str = ""
+    """z.B. «Bezahlt am 11.11.2026, TWINT. Vielen Dank!» oder Zahlungsangaben bei offener Rechnung."""
+    storniert: bool = False
 
 
-def erzeuge_rechnung_pdf(daten: RechnungsDaten, ziel_pfad: str) -> str:
-    """Rendert die Rechnung als PDF und gibt den Zielpfad zurück."""
-    c = canvas.Canvas(ziel_pfad, pagesize=A4)
-    width, height = A4
-    margin = 40
+def _chf(x: Decimal) -> str:
+    return f"CHF {x:,.2f}".replace(",", "'")
 
-    # Kopfbereich
-    c.setFillColor(DARK)
-    c.rect(0, height - 80, width, 80, fill=1, stroke=0)
-    c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(margin, height - 38, f"Rechnung {daten.nummer}")
-    c.setFont("Helvetica", 10)
-    c.drawString(margin, height - 56, daten.betrieb_name)
-    c.drawString(margin, height - 70, f"MWST-Nr.: {daten.betrieb_mwst_nummer}")
 
-    y = height - 110
+def _menge(x: Decimal) -> str:
+    return f"{x:.2f}".rstrip("0").rstrip(".")
+
+
+def rechnung_pdf(daten: RechnungsDaten) -> bytes:
+    puffer = BytesIO()
+    c = canvas.Canvas(puffer, pagesize=A4)
+    c.setTitle(f"Rechnung {daten.nummer}")
+    breite, hoehe = A4
+    rand = 50
+    rechts = breite - rand
+
+    def kopf():
+        y = hoehe - 60
+        c.setFillColor(TIEFSEE)
+        c.setFont("Helvetica-Bold", 11)
+        for i, zeile in enumerate(daten.absender_zeilen or ["Campingverwaltung"]):
+            c.setFont("Helvetica-Bold" if i == 0 else "Helvetica", 11 if i == 0 else 9)
+            c.drawString(rand, y, zeile)
+            y -= 13
+        if daten.mwst_nummer:
+            c.setFont("Helvetica", 8.5)
+            c.setFillColor(LEISE)
+            c.drawString(rand, y - 2, daten.mwst_nummer)
+            y -= 13
+        return y
+
+    y = kopf()
+    # Empfänger (Fensterposition rechts)
+    ye = hoehe - 150
     c.setFillColor(black)
     c.setFont("Helvetica", 10)
-    c.drawString(margin, y, daten.kunde_name)
-    c.drawString(margin, y - 14, daten.kunde_adresse)
+    for zeile in daten.kunde_zeilen:
+        c.drawString(breite / 2 + 20, ye, zeile)
+        ye -= 13
+    y = min(y, ye) - 30
 
-    c.drawRightString(width - margin, y, f"Datum: {daten.datum}")
-    c.drawRightString(width - margin, y - 14, f"Leistungszeitraum: {daten.leistungszeitraum}")
+    c.setFont("Helvetica-Bold", 16)
+    c.setFillColor(TIEFSEE)
+    c.drawString(rand, y, f"Rechnung {daten.nummer}" + ("  – STORNIERT" if daten.storniert else ""))
+    y -= 20
+    c.setFont("Helvetica", 9.5)
+    c.setFillColor(LEISE)
+    angaben = [f"Datum: {daten.datum}", f"Aufenthalt: {daten.leistungszeitraum}"]
+    if daten.reservation:
+        angaben.append(f"Reservation: {daten.reservation}")
+    c.drawString(rand, y, "   ·   ".join(angaben))
+    y -= 26
 
-    y -= 55
+    spalten = {"menge": rand + 300, "preis": rand + 370, "mwst": rand + 430}
 
-    # Tabellenkopf
-    col_bez, col_menge, col_preis, col_mwst, col_betrag = (
-        margin, margin + 240, margin + 300, margin + 370, width - margin
-    )
-    c.setFillColor(ACCENT)
-    c.rect(margin, y - 18, width - 2 * margin, 20, fill=1, stroke=0)
-    c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(col_bez + 6, y - 13, "Position")
-    c.drawString(col_menge, y - 13, "Menge")
-    c.drawString(col_preis, y - 13, "Einzelpreis")
-    c.drawString(col_mwst, y - 13, "MWST")
-    c.drawRightString(col_betrag, y - 13, "Betrag")
-    y -= 24
+    def tabellenkopf(y):
+        c.setFillColor(NEBEL)
+        c.rect(rand, y - 6, rechts - rand, 18, fill=1, stroke=0)
+        c.setFillColor(LEISE)
+        c.setFont("Helvetica-Bold", 8.5)
+        c.drawString(rand + 6, y, "Leistung")
+        c.drawRightString(spalten["menge"], y, "Menge")
+        c.drawRightString(spalten["preis"], y, "Preis")
+        c.drawRightString(spalten["mwst"], y, "MWST")
+        c.drawRightString(rechts - 6, y, "Betrag")
+        return y - 20
 
+    y = tabellenkopf(y)
     c.setFont("Helvetica", 9)
     for pos in daten.positionen:
-        c.setFillColor(black)
-        c.drawString(col_bez + 6, y - 12, pos.bezeichnung)
-        c.drawString(col_menge, y - 12, str(pos.menge))
-        c.drawString(col_preis, y - 12, f"CHF {pos.einzelpreis:.2f}")
-        c.drawString(col_mwst, y - 12, f"{pos.mwstsatz_prozent:.1f}%")
-        c.drawRightString(col_betrag, y - 12, f"CHF {pos.betrag:.2f}")
-        c.setStrokeColor(LIGHT_LINE)
-        c.line(margin, y - 18, width - margin, y - 18)
-        y -= 20
-        if y < 150:  # einfacher Seitenumbruch bei vielen Positionen
+        if y < 140:
             c.showPage()
-            y = height - 60
+            y = tabellenkopf(hoehe - 60)
+            c.setFont("Helvetica", 9)
+        c.setFillColor(black)
+        text = pos.bezeichnung if len(pos.bezeichnung) <= 58 else pos.bezeichnung[:56] + "…"
+        c.drawString(rand + 6, y, text)
+        c.drawRightString(spalten["menge"], y, _menge(pos.menge))
+        c.drawRightString(spalten["preis"], y, f"{pos.einzelpreis:.2f}")
+        c.drawRightString(spalten["mwst"], y, f"{pos.mwstsatz_prozent:.1f}%" if pos.mwstsatz_prozent else "–")
+        c.drawRightString(rechts - 6, y, f"{pos.betrag:.2f}")
+        c.setStrokeColor(LINIE)
+        c.line(rand, y - 6, rechts, y - 6)
+        y -= 18
 
-    y -= 15
-    # MWST-Aufschlüsselung je Satz (gesetzlich vorgeschrieben)
-    saetze: dict[Decimal, Decimal] = {}
+    y -= 8
+    c.setFont("Helvetica-Bold", 10.5)
+    c.drawString(spalten["preis"] - 60, y, "Total")
+    c.drawRightString(rechts - 6, y, _chf(daten.gesamtbetrag))
+    y -= 14
+    c.setFont("Helvetica", 8.5)
+    c.setFillColor(LEISE)
+    saetze: dict[Decimal, list[Decimal]] = {}
     for pos in daten.positionen:
         if pos.mwstsatz_prozent > 0:
-            netto_mwst = pos.betrag - pos.betrag / (1 + pos.mwstsatz_prozent / 100)
-            saetze[pos.mwstsatz_prozent] = saetze.get(pos.mwstsatz_prozent, Decimal("0")) + netto_mwst
-
-    c.setFont("Helvetica", 8.5)
-    for satz, mwst_summe in sorted(saetze.items()):
-        c.drawRightString(col_betrag, y, f"davon MWST {satz:.1f}%: CHF {mwst_summe:.2f}")
-        y -= 12
-
-    y -= 10
-    c.setFont("Helvetica-Bold", 11)
-    c.drawRightString(col_betrag, y, f"Total: CHF {daten.gesamtbetrag:.2f}")
-
-    if daten.zahlungshinweis:
-        y -= 30
-        c.setFont("Helvetica", 9)
-        c.drawString(margin, y, daten.zahlungshinweis)
-
+            mwst = pos.betrag - pos.betrag / (1 + pos.mwstsatz_prozent / 100)
+            eintrag = saetze.setdefault(pos.mwstsatz_prozent, [Decimal("0"), Decimal("0")])
+            eintrag[0] += pos.betrag
+            eintrag[1] += mwst
+    for satz, (basis, mwst) in sorted(saetze.items()):
+        c.drawRightString(rechts - 6, y, f"inkl. MWST {satz:.1f}% auf {basis:.2f}: CHF {mwst:.2f}")
+        y -= 11
+    if any(p.mwstsatz_prozent == 0 for p in daten.positionen):
+        c.drawRightString(rechts - 6, y, "Kurtaxe und Beherbergungsabgabe ohne MWST")
+        y -= 11
+    c.setFillColor(black)
+    if daten.anzahlung:
+        y -= 6
+        c.setFont("Helvetica", 10)
+        c.drawString(spalten["preis"] - 60, y, daten.anzahlung_text)
+        c.drawRightString(rechts - 6, y, "– " + _chf(daten.anzahlung))
+        y -= 16
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(spalten["preis"] - 60, y, "Restbetrag")
+        c.drawRightString(rechts - 6, y, _chf(daten.gesamtbetrag - daten.anzahlung))
+        y -= 8
+    if daten.zahlungsvermerk:
+        y -= 26
+        c.setFont("Helvetica", 9.5)
+        for zeile in daten.zahlungsvermerk.split("\n"):
+            c.drawString(rand, y, zeile)
+            y -= 13
     c.showPage()
     c.save()
-    return ziel_pfad
+    return puffer.getvalue()

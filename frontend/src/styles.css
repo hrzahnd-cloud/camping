@@ -622,3 +622,18 @@ table.leistungen tr.abzug td { color: var(--moos); font-style: italic; }
   .saison-raster { grid-template-columns: 1fr; }
   .speicherleiste { left: 0; padding: 10px 16px; }
 }
+
+/* ---------- Rechnungen ---------- */
+.kopf-zahl { margin: 0; color: var(--tinte-leise); }
+.kopf-zahl strong { color: var(--harz); font-size: 1.125rem; }
+table.rechnungsliste { width: 100%; border-collapse: collapse; margin-top: 14px; background: var(--papier); border-radius: var(--radius-klein); }
+table.rechnungsliste th, table.rechnungsliste td { padding: 10px 10px; border-bottom: 1px solid var(--nebel); text-align: left; white-space: nowrap; }
+table.rechnungsliste thead th { font-size: 0.8125rem; color: var(--tinte-leise); border-bottom-color: var(--linie); }
+table.rechnungsliste tbody tr { cursor: pointer; }
+table.rechnungsliste tbody tr:hover, table.rechnungsliste tbody tr:focus { background: var(--see-zart); outline: none; }
+table.rechnungsliste .zahl { text-align: right; font-variant-numeric: tabular-nums; }
+.zahlung-erfassen { display: grid; gap: 8px; border: 1px solid var(--linie); border-radius: var(--radius-klein); padding: 10px 12px; }
+.zahlung-erfassen h3 { margin: 0; font-size: 0.9375rem; }
+.rechnung-abschnitt .abschnitt-kopf .aktionen { display: inline-flex; gap: 12px; }
+.rechnung-panel { gap: 12px; }
+.rechnung-abschnitt .rechnung-panel h2 { font-size: 1.125rem; }
