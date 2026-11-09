@@ -202,7 +202,7 @@ def test_leistungen_checkin_verlaengern_abwesenheit_zusatzpersonen_und_taxen(cli
     bid = r.json()["buchung_id"]
     d = _leist(client, bid)
     assert _kurz(d) == [("erwachsene", 2, t(0), t(5)), ("kinder", 4, t(0), t(5)),
-                        ("kleinkinder", 1, t(0), t(5)), ("wohnwagen", 1, t(0), t(5))]
+                        ("kleinkinder", 1, t(0), t(5)), ("umweltabgabe", 1, t(0), t(5)), ("wohnwagen", 1, t(0), t(5))]
     assert [(x["bezeichnung"], x["personennaechte"], x["betrag"]) for x in d["taxen"]] == \
         [("Kurtaxe Aeschi", 10, "35.00"), ("Beherbergungsabgabe Kanton Bern", 10, "10.00")]
 
@@ -240,6 +240,15 @@ def test_leistungen_checkin_verlaengern_abwesenheit_zusatzpersonen_und_taxen(cli
     z = _kurz(_leist(client, bid))
     assert ("zeltwiese", 1, t(2), t(3)) in z and ("kinder", 2, t(3), t(7)) not in z
     assert all(x[3] <= t(3) for x in z)
+    # Umweltabgabe: nur eine pro Stellplatz, auch mit Zusatzzelt; zieht beim Verkürzen mit
+    assert [x for x in z if x[0] == "umweltabgabe"] == [("umweltabgabe", 1, t(0), t(3))]
+    # Wechsel auf Zwärgli: keine Umweltabgabe, zurück auf Camper: wieder dabei
+    client.patch(f"/aufenthalte/{bid}", json={"stellplatz_typ": "zwaergli"})
+    z = _kurz(_leist(client, bid))
+    assert ("zwaergli", 1, t(0), t(3)) in z and not any(x[0] == "umweltabgabe" for x in z)
+    client.patch(f"/aufenthalte/{bid}", json={"stellplatz_typ": "camper"})
+    z = _kurz(_leist(client, bid))
+    assert ("camper", 1, t(0), t(3)) in z and ("umweltabgabe", 1, t(0), t(3)) in z
     # Abreise früher: auch die Leistungen enden
     client.post(f"/aufenthalte/{bid}/abreise", json={"datum": t(2)})
     z = _kurz(_leist(client, bid))

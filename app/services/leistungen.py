@@ -3,7 +3,8 @@ Leistungen eines Aufenthalts (Buchung): wer und was wann auf dem Platz war.
 
 Jede Zeile hat eine Art, eine Anzahl und einen Zeitraum [von, bis). Beim
 Check-in entstehen Zeilen für Erwachsene, Kinder, Kleinkinder und den
-Stellplatz über den ganzen Aufenthalt. Danach lässt sich alles anpassen:
+Stellplatz über den ganzen Aufenthalt, bei Zelt/Wohnwagen/Camper zudem die
+Umweltabgabe (pro Stellplatz und Nacht). Danach lässt sich alles anpassen:
 - ganzer Aufenthalt verlängern/verkürzen: Zeilen ziehen mit (`zeitraum_setzen`);
 - Abwesenheit: z.B. 2 von 4 Kindern zwei Nächte weg (`abwesenheit`);
 - zusätzliche Personen oder ein zusätzliches Zelt für einen Teil des Aufenthalts:
@@ -57,6 +58,9 @@ ARTEN: tuple[Art, ...] = (
 )
 ART = {a.code: a for a in ARTEN}
 PERSONEN = ("erwachsene", "kinder", "kleinkinder")
+MIT_UMWELTABGABE = ("zeltwiese", "wohnwagen", "camper")
+"""Umweltabgabe pro Stellplatz und Nacht (mit dem Betrieb festgelegt, November 2026);
+ein Zusatzzelt auf demselben Platz zählt nicht als eigener Stellplatz, Zwärgli/Spycher ohne."""
 
 
 def ist_stueck(art: str) -> bool:
@@ -77,7 +81,27 @@ def grundzeilen(b: Buchung) -> list[BuchungLeistung]:
             zeilen.append(BuchungLeistung(art=art, anzahl=anzahl, von=b.von, bis=b.bis, kurtaxepflichtig=True))
     if b.stellplatz_typ in ART:
         zeilen.append(BuchungLeistung(art=b.stellplatz_typ, anzahl=1, von=b.von, bis=b.bis))
+    if b.stellplatz_typ in MIT_UMWELTABGABE:
+        zeilen.append(BuchungLeistung(art="umweltabgabe", anzahl=1, von=b.von, bis=b.bis))
     return zeilen
+
+
+def stellplatz_wechseln(b: Buchung, neuer_typ: str) -> None:
+    """
+    Anderer Stellplatz-Typ: Zeilen des bisherigen Typs übernehmen den neuen;
+    die Umweltabgabe kommt dazu bzw. entfällt (nur Zelt, Wohnwagen, Camper).
+    """
+    alt = b.stellplatz_typ
+    for z in b.leistungen:
+        if z.art == alt:
+            z.art = neuer_typ
+    hat_abgabe = any(z.art == "umweltabgabe" for z in b.leistungen)
+    if neuer_typ in MIT_UMWELTABGABE and alt not in MIT_UMWELTABGABE and not hat_abgabe:
+        b.leistungen.append(BuchungLeistung(art="umweltabgabe", anzahl=1, von=b.von, bis=b.bis))
+    if neuer_typ not in MIT_UMWELTABGABE and alt in MIT_UMWELTABGABE:
+        for z in [z for z in b.leistungen if z.art == "umweltabgabe"]:
+            b.leistungen.remove(z)
+    b.stellplatz_typ = neuer_typ
 
 
 def personen_je_nacht(b: Buchung) -> dict[date, tuple[int, int, int]]:

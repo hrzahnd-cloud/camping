@@ -5,7 +5,8 @@ Revises: 0008
 Create Date: 2026-11-09 16:00:00
 
 Bestehende Aufenthalte erhalten Zeilen aus ihren Personenzahlen und dem
-Stellplatz-Typ über den ganzen Aufenthalt.
+Stellplatz-Typ über den ganzen Aufenthalt (bei Zelt/Wohnwagen/Camper mit
+Umweltabgabe pro Stellplatz und Nacht).
 """
 import uuid
 from datetime import datetime, timezone
@@ -52,6 +53,8 @@ def upgrade() -> None:
                  ('kleinkinder', b['anzahl_kleinkinder'])]
         if b['stellplatz_typ'] in STELLPLATZ:
             teile.append((b['stellplatz_typ'], 1))
+        if b['stellplatz_typ'] in ('zeltwiese', 'wohnwagen', 'camper'):
+            teile.append(('umweltabgabe', 1))  # pro Stellplatz und Nacht
         for art, anzahl in teile:
             if anzahl:
                 zeilen.append(dict(id=uuid.uuid4(), buchung_id=b['id'], art=art, anzahl=anzahl, von=b['von'],

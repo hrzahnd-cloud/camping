@@ -228,11 +228,7 @@ def aendern(buchung_id: uuid.UUID, daten: AufenthaltAenderung, db: Session = Dep
     g = b.hauptgast
     neuer_typ = werte.pop("stellplatz_typ", None)
     if neuer_typ and neuer_typ != b.stellplatz_typ:
-        # Stellplatz-Zeilen des bisherigen Typs übernehmen den neuen Typ
-        for z in b.leistungen:
-            if z.art == b.stellplatz_typ:
-                z.art = neuer_typ
-        b.stellplatz_typ = neuer_typ
+        lst.stellplatz_wechseln(b, neuer_typ)
     werte.pop("von", None), werte.pop("bis", None)
     for feld, wert in werte.items():
         if isinstance(wert, str):

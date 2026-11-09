@@ -92,7 +92,8 @@ Gast bearbeiten (Nationalität Pflicht), ganzen Aufenthalt verlängern/verkürze
 Spycher, Strom, Auto, Motorrad, Umweltabgabe, Wassertank). So lassen sich Abwesenheiten
 («2 von 4 Kindern zwei Nächte weg» teilt die Zeile auf) und Personen abbilden, die mit eigenem
 Zelt nur einen Teil des Aufenthalts dabei sind – abgerechnet über den ursprünglichen
-Aufenthalt; ein solches Zusatzzelt zählt nicht als eigener Stellplatz. Taxen je Personennacht:
+Aufenthalt; ein solches Zusatzzelt zählt nicht als eigener Stellplatz. Die Umweltabgabe kommt
+beim Check-in automatisch dazu: pro Stellplatz (Zelt, Wohnwagen, Camper) und Nacht. Taxen je Personennacht:
 Beherbergungsabgabe für alle Erwachsenen, Kurtaxe nur für kurtaxepflichtige. Ohne das Modul
 bleibt der kurze Check-in samt Abreise in der Belegung wie bisher. Preise folgen mit «Artikel &
 Preise».
