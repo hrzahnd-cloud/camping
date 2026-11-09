@@ -11,12 +11,12 @@ const TAG_LANG = new Intl.DateTimeFormat("de-CH", { weekday: "long", day: "numer
 const MONAT = new Intl.DateTimeFormat("de-CH", { month: "long", year: "numeric" });
 const STELLPLAETZE = ["zeltwiese", "wohnwagen", "camper"];
 // häufige Herkunftsländer zuerst; weitere über «Anderes Land» als ISO-Code (HESTA)
-const LAENDER = { CH: "Schweiz", DE: "Deutschland", NL: "Niederlande", FR: "Frankreich", IT: "Italien", BE: "Belgien",
+export const LAENDER = { CH: "Schweiz", DE: "Deutschland", NL: "Niederlande", FR: "Frankreich", IT: "Italien", BE: "Belgien",
   AT: "Österreich", GB: "Grossbritannien", LU: "Luxemburg", DK: "Dänemark", SE: "Schweden", NO: "Norwegen", FI: "Finnland",
   ES: "Spanien", PT: "Portugal", PL: "Polen", CZ: "Tschechien", SK: "Slowakei", HU: "Ungarn", SI: "Slowenien", HR: "Kroatien",
   IE: "Irland", LI: "Liechtenstein", US: "USA", CA: "Kanada", AU: "Australien", NZ: "Neuseeland", IL: "Israel",
   CN: "China", JP: "Japan", KR: "Südkorea", IN: "Indien" };
-const ANDERES = "__anderes";
+export const ANDERES = "__anderes";
 
 function bereich(ansicht, bezug, frei) {
   if (ansicht === "monat") {
@@ -47,7 +47,8 @@ const hashParameter = () => new URLSearchParams(window.location.hash.split("?")[
 const istAufenthalt = (e) => e.art === "aufenthalt";
 const eintragStatus = (e) => (istAufenthalt(e) ? (e.status === "eingecheckt" ? "Eingecheckt" : "Abgereist") : statusName(e.status));
 
-export default function Belegung() {
+export default function Belegung({ module = [] }) {
+  const aufenthalteAktiv = module.some((m) => m.code === "buchungen" && m.aktiv);
   const heute = heuteIso();
   const start = hashParameter();
   const [ansicht, setAnsicht] = useState("monat");
@@ -169,7 +170,7 @@ export default function Belegung() {
               onEintrag={(e) => setSchublade({ art: "eintrag", id: e.id, zurueck: schublade.datum })} />
           )}
           {schublade.art === "eintrag" && (
-            <EintragPanel id={schublade.id} heute={heute} zurueck={schublade.zurueck}
+            <EintragPanel id={schublade.id} heute={heute} zurueck={schublade.zurueck} aufenthalteAktiv={aufenthalteAktiv}
               onZurueck={(datum) => setSchublade({ art: "tag", datum })}
               onCheckin={(e) => setSchublade({ art: "checkin", eintrag: e, zurueck: schublade.zurueck })}
               onGeaendert={nachAenderung} onGeloescht={() => { nachAenderung(); setSchublade(schublade.zurueck ? { art: "tag", datum: schublade.zurueck } : null); }} />
@@ -185,11 +186,11 @@ export default function Belegung() {
   );
 }
 
-function Schublade({ children, onSchliessen }) {
+export function Schublade({ children, onSchliessen, breit = false, titel = "Details zur Belegung" }) {
   return (
     <>
       <div className="schublade-hintergrund" onClick={onSchliessen} aria-hidden="true" />
-      <aside className="schublade" role="dialog" aria-modal="false" aria-label="Details zur Belegung">
+      <aside className={`schublade${breit ? " breit" : ""}`} role="dialog" aria-modal="false" aria-label={titel}>
         <button className="knopf symbol schliessen" onClick={onSchliessen} aria-label="Schliessen"><X size={18} /></button>
         {children}
       </aside>
@@ -427,7 +428,7 @@ function TagPanel({ datum, heute, onEintrag }) {
       <h2>{TAG_LANG.format(ausIso(datum))}</h2>
       <p className={`auslastung-satz ${a.stufe}`}>
         <strong>{a.belegt} von {daten.plaetze}</strong> Stellplätzen belegt
-        {a.stufe === "hoch" && " – hohe Belegung"}{a.stufe === "voll" && " – ausgebucht"}
+        {a.stufe === "hoch" && " – hohe Belegung"}{a.stufe === "voll" && (a.belegt > daten.plaetze ? ` – überbucht (${a.belegt - daten.plaetze} zu viel)` : " – ausgebucht")}
       </p>
       <PanelListe titel="Anreisen" leer="Keine Anreisen." eintraege={akzAnreisen} onEintrag={onEintrag}
         aktion={(e) => (!istAufenthalt(e) && e.status === "bezahlt_akzeptiert" && datum <= heute ? "einchecken" : null)} />
@@ -463,7 +464,7 @@ function PanelListe({ titel, leer, eintraege, onEintrag, aktion, einklappbar }) 
   return <section className="panel-abschnitt"><h3>{titel} ({eintraege.length})</h3>{inhalt}</section>;
 }
 
-function EintragPanel({ id, heute, zurueck, onZurueck, onCheckin, onGeaendert, onGeloescht }) {
+function EintragPanel({ id, heute, zurueck, aufenthalteAktiv, onZurueck, onCheckin, onGeaendert, onGeloescht }) {
   const [eintrag, setEintrag] = useState(null);
   const [fehler, setFehler] = useState(null);
   const [laeuft, setLaeuft] = useState(false);
@@ -504,13 +505,18 @@ function EintragPanel({ id, heute, zurueck, onZurueck, onCheckin, onGeaendert, o
         <dl className="angaben">
           <dt>Aufenthalt</dt><dd>{datumVoll(e.von)} bis {datumVoll(e.bis)}</dd>
           <dt>Stellplatz</dt><dd><TypMarke code={e.stellplatz_typ} />{e.platz ? `, Platz ${e.platz}` : ""}</dd>
-          <dt>Personen</dt><dd>{personenLang(e.anzahl_erwachsene, e.anzahl_kinder)}</dd>
+          <dt>Personen</dt><dd>{personenLang(e.anzahl_erwachsene, e.anzahl_kinder, e.anzahl_kleinkinder)}</dd>
           <dt>Nationalität</dt><dd>{LAENDER[e.nationalitaet] ?? e.nationalitaet ?? "–"}</dd>
           <dt>Adresse</dt><dd>{[e.strasse, [e.plz, e.ort].filter(Boolean).join(" "), LAENDER[e.land] ?? e.land].filter(Boolean).join(", ") || "–"}</dd>
           <dt>Kontakt</dt><dd>{[e.email, e.telefon].filter(Boolean).join(", ") || "–"}</dd>
           {e.anfrage?.anzahlung_erhalten && <><dt>Anzahlung</dt><dd>CHF {Number(e.anfrage.anzahlung_erhalten).toFixed(2)} erhalten</dd></>}
           {e.bemerkung && <><dt>Bemerkung</dt><dd className="mehrzeilig">{e.bemerkung}</dd></>}
         </dl>
+        {aufenthalteAktiv && (
+          <div className="aktionen">
+            <a className="knopf neben" href={`#/aufenthalte?id=${e.buchung_id}`}>Leistungen und Details im Aufenthalt</a>
+          </div>
+        )}
         {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
         {e.status === "eingecheckt" && (
           <div className="aktionen">
@@ -539,7 +545,7 @@ function EintragPanel({ id, heute, zurueck, onZurueck, onCheckin, onGeaendert, o
       <dl className="angaben">
         <dt>Zeitraum</dt><dd>{datumVoll(a.gewuenscht_von)} bis {datumVoll(a.gewuenscht_bis)}</dd>
         <dt>Stellplatz</dt><dd><TypMarke code={a.stellplatz_typ} /></dd>
-        <dt>Personen</dt><dd>{personenLang(a.anzahl_erwachsene, a.anzahl_kinder)}</dd>
+        <dt>Personen</dt><dd>{personenLang(a.anzahl_erwachsene, a.anzahl_kinder, a.anzahl_kleinkinder)}</dd>
         <dt>Kontakt</dt><dd>{[a.gast_email, a.gast_telefon].filter(Boolean).join(", ")}</dd>
         {(a.anzahlung_erhalten || akzeptiert) && <><dt>Anzahlung</dt><dd>{a.anzahlung_erhalten ? `CHF ${Number(a.anzahlung_erhalten).toFixed(2)} erhalten` : "ohne Anzahlung"}</dd></>}
         {a.bemerkung && <><dt>Bemerkung</dt><dd className="mehrzeilig">{a.bemerkung}</dd></>}
@@ -575,12 +581,12 @@ export function HoheBelegung({ liste }) {
   return (
     <p className={`meldung ${voll.length ? "fehler" : "warnung"}`}>
       Hohe Belegung: {liste.map((h) => `${datumKurz(h.datum)} ${h.mit_dieser}/${h.plaetze}`).join(", ")}
-      {voll.length ? " – über der Platzzahl!" : " (mit dieser Reservation)."}
+      {voll.length ? " – damit überbucht!" : " (mit dieser Reservation)."}
     </p>
   );
 }
 
-function Bestaetigung({ offen, onOeffnen, onAbbrechen, knopf, frage, laeuft, onJa }) {
+export function Bestaetigung({ offen, onOeffnen, onAbbrechen, knopf, frage, laeuft, onJa }) {
   if (!offen) return <div className="aktionen"><button className="knopf leise" onClick={onOeffnen}>{knopf}</button></div>;
   return (
     <div className="bestaetigung" role="group" aria-label={knopf}>
@@ -593,7 +599,7 @@ function Bestaetigung({ offen, onOeffnen, onAbbrechen, knopf, frage, laeuft, onJ
   );
 }
 
-function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
+export function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
   const teile = (eintrag?.gast_name || "").trim().split(/\s+/);
   const [werte, setWerte] = useState({
     vorname: teile.length > 1 ? teile.slice(0, -1).join(" ") : teile[0] || "",
@@ -603,7 +609,8 @@ function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
     stellplatz_typ: eintrag?.stellplatz_typ || "zeltwiese", platz: "",
     von: eintrag ? (eintrag.gewuenscht_von < heute ? eintrag.gewuenscht_von : heute) : heute,
     bis: eintrag?.gewuenscht_bis || isoDatum(plusTage(new Date(), 1)),
-    anzahl_erwachsene: eintrag?.anzahl_erwachsene ?? 2, anzahl_kinder: eintrag?.anzahl_kinder ?? 0, bemerkung: "",
+    anzahl_erwachsene: eintrag?.anzahl_erwachsene ?? 2, anzahl_kinder: eintrag?.anzahl_kinder ?? 0,
+    anzahl_kleinkinder: eintrag?.anzahl_kleinkinder ?? 0, bemerkung: "",
   });
   const [fehler, setFehler] = useState(null);
   const [laeuft, setLaeuft] = useState(false);
@@ -622,6 +629,7 @@ function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
         email: werte.email || null, telefon: werte.telefon || null, strasse: werte.strasse || null,
         plz: werte.plz || null, ort: werte.ort || null, land: werte.land || null, bemerkung: werte.bemerkung || null,
         anzahl_erwachsene: Number(werte.anzahl_erwachsene), anzahl_kinder: Number(werte.anzahl_kinder),
+        anzahl_kleinkinder: Number(werte.anzahl_kleinkinder),
       }));
     } catch (err) { setFehler(err.message); } finally { setLaeuft(false); }
   };
@@ -651,8 +659,9 @@ function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
         <div className="feld"><label htmlFor="ci-platz">Platz (optional)</label><input {...feld("platz")} placeholder="z.B. 17" /></div>
         <div className="feld"><label htmlFor="ci-von">Anreise</label><input type="date" required max={heute} {...feld("von")} /></div>
         <div className="feld"><label htmlFor="ci-bis">Abreise</label><input type="date" required min={isoDatum(plusTage(ausIso(werte.von), 1))} {...feld("bis")} /></div>
-        <div className="feld"><label htmlFor="ci-anzahl_erwachsene">Erwachsene</label><input type="number" min="0" max="50" required {...feld("anzahl_erwachsene")} /></div>
-        <div className="feld"><label htmlFor="ci-anzahl_kinder">Kinder</label><input type="number" min="0" max="50" required {...feld("anzahl_kinder")} /></div>
+        <div className="feld"><label htmlFor="ci-anzahl_erwachsene">Erwachsene (ab 16)</label><input type="number" min="0" max="50" required {...feld("anzahl_erwachsene")} /></div>
+        <div className="feld"><label htmlFor="ci-anzahl_kinder">Kinder (6–15)</label><input type="number" min="0" max="50" required {...feld("anzahl_kinder")} /></div>
+        <div className="feld"><label htmlFor="ci-anzahl_kleinkinder">Kleinkinder (0–5)</label><input type="number" min="0" max="50" required {...feld("anzahl_kleinkinder")} /></div>
         <div className="feld breit"><label htmlFor="ci-bemerkung">Bemerkung</label><textarea rows="2" {...feld("bemerkung")} /></div>
       </div>
       <details className="optional">

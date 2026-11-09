@@ -332,6 +332,11 @@ _PERSONEN_WOERTER = {
 }
 
 
+def _kinder_total(anfrage) -> int:
+    """Kinder inkl. Kleinkinder – in der Mail genügt die Gesamtzahl."""
+    return (anfrage.anzahl_kinder or 0) + (getattr(anfrage, "anzahl_kleinkinder", 0) or 0)
+
+
 def personen_text(erwachsene: int, kinder: int, sprache: str) -> str:
     """'2 Erwachsene, 1 Kind' – Kinder nur, wenn welche dabei sind."""
     (e1, e2), (k1, k2) = _PERSONEN_WOERTER.get(sprache, _PERSONEN_WOERTER["de"])
@@ -437,9 +442,9 @@ def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal | Non
         "abreise": datum_text(anfrage.gewuenscht_bis, sprache),
         "naechte": str(naechte),
         "stellplatzTyp": _TYPEN.get(anfrage.stellplatz_typ or "", {}).get(sprache, anfrage.stellplatz_typ or ""),
-        "personen": personen_text(anfrage.anzahl_erwachsene or 0, anfrage.anzahl_kinder or 0, sprache),
+        "personen": personen_text(anfrage.anzahl_erwachsene or 0, _kinder_total(anfrage), sprache),
         "erwachsene": str(anfrage.anzahl_erwachsene or 0),
-        "kinder": str(anfrage.anzahl_kinder or 0),
+        "kinder": str(_kinder_total(anfrage)),
         "betrag": betrag_text(betrag) if betrag is not None else "",
         "zahlungsfrist": datum_text(frist, sprache),
         "zahlungsinfo": zahlungsinfo(sprache, betrag, frist, betrieb, anfrage.nummer) if betrag is not None else "",

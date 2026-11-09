@@ -127,7 +127,7 @@ function Liste({ titel, leer, eintraege }) {
                 <span className="zeile1"><strong>{a.gast_name}</strong><StatusMarke status={a.status} /></span>
                 <span className="zeile2">
                   <TypMarke code={a.stellplatz_typ} />
-                  <span>{personen(a.anzahl_erwachsene, a.anzahl_kinder)}</span>
+                  <span>{personen(a.anzahl_erwachsene, a.anzahl_kinder, a.anzahl_kleinkinder)}</span>
                   {n ? <span>{anzahl(n, "Nacht", "Nächte")}</span> : null}
                 </span>
               </a>

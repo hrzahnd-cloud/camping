@@ -81,14 +81,33 @@ frei. Ist ein Gast nicht erschienen, zeigt «Heute» ihn am Morgen danach; «Nic
 den Platz frei, eine Anzahlung bleibt erfasst. Stornieren behält die Anfrage, «Endgültig
 löschen» entfernt sie mit Mailverlauf und Zahlungen (z.B. Testdaten).
 
+**Personen:** Erwachsene ab 16 Jahren, Kinder 6–15 (ohne Kurtaxe), Kleinkinder 0–5 (gratis).
+Kleinkinder werden separat gespeichert; in der Belegung und in Mails zählen sie bei den Kindern
+mit. Sind mehr Plätze belegt als vorhanden, zeigt die Belegung «überbucht».
+
+**Aufenthalte (Modul «Buchungen & Aufenthalte», einschaltbar):** Register «Auf dem Platz»,
+«Anreisen» (nächste 7 Tage und noch nicht Angereiste) und «Abgereist». Je Aufenthalt:
+Gast bearbeiten (Nationalität Pflicht), ganzen Aufenthalt verlängern/verkürzen und die
+*Leistungen* – jede Zeile mit Art, Anzahl und eigenem Zeitraum (Personen, Stellplatz, Zwärgli,
+Spycher, Strom, Auto, Motorrad, Umweltabgabe, Wassertank). So lassen sich Abwesenheiten
+(«2 von 4 Kindern zwei Nächte weg» teilt die Zeile auf) und Personen abbilden, die mit eigenem
+Zelt nur einen Teil des Aufenthalts dabei sind – abgerechnet über den ursprünglichen
+Aufenthalt; ein solches Zusatzzelt zählt nicht als eigener Stellplatz. Die Umweltabgabe kommt
+beim Check-in automatisch dazu: pro Stellplatz (Zelt, Wohnwagen, Camper) und Nacht. Taxen je Personennacht:
+Beherbergungsabgabe für alle Erwachsenen, Kurtaxe nur für kurtaxepflichtige. Ohne das Modul
+bleibt der kurze Check-in samt Abreise in der Belegung wie bisher. Preise folgen mit «Artikel &
+Preise».
+
 **Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
 Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
 @example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
+`scripts/testdaten_nebensaison.js` erzeugt ab morgen bis Mitte Dezember Nebensaison-Daten mit
+bereits eingecheckten Gästen, Anreisen, Wintercampern und offenen Anfragen.
 
-**Module:** Buchungen, Artikel & Preise, Rechnungen, Auswertungen, HESTA und Feratel sind im
-Backend vollständig vorhanden und in der Datenbank vorgesehen, aber standardmässig
-ausgeschaltet. Unter *Einstellungen* lassen sie sich ohne Deployment einschalten; ihre eigene
-Oberfläche folgt in einer späteren Phase (bis dahin Verweis auf die API).
+**Module:** Artikel & Preise, Rechnungen, Auswertungen, HESTA und Feratel sind im
+Backend vorhanden, aber standardmässig ausgeschaltet. Unter *Einstellungen* lassen sie sich
+ohne Deployment einschalten; ihre eigene Oberfläche folgt schrittweise (bis dahin Verweis auf
+die API).
 
 Entwicklung der Oberfläche (Node.js ≥ 24.22.1, siehe `frontend/.nvmrc`):
 

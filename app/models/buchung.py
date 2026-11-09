@@ -2,7 +2,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import Date, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, Text, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -46,6 +46,9 @@ class Buchung(Base, IDMixin, TimestampMixin):
     """Platznummer/-bezeichnung als Freitext, optional."""
     anzahl_erwachsene: Mapped[int] = mapped_column(Integer, default=1)
     anzahl_kinder: Mapped[int] = mapped_column(Integer, default=0)
+    """Kinder 6–15 Jahre (ohne Kurtaxe)."""
+    anzahl_kleinkinder: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    """Kleinkinder 0–5 Jahre (gratis). Erwachsene = ab 16 Jahren."""
     bemerkung: Mapped[str | None] = mapped_column(Text)
     von: Mapped[date] = mapped_column(Date)
     bis: Mapped[date] = mapped_column(Date)
@@ -61,6 +64,8 @@ class Buchung(Base, IDMixin, TimestampMixin):
     hauptgast: Mapped["Gast"] = relationship(foreign_keys=[hauptgast_id])
     aufenthalte: Mapped[list["Aufenthalt"]] = relationship(back_populates="buchung")
     rechnung: Mapped["Rechnung | None"] = relationship(back_populates="buchung", uselist=False)
+    leistungen: Mapped[list["BuchungLeistung"]] = relationship(
+        back_populates="buchung", cascade="all, delete-orphan", order_by="BuchungLeistung.von")
 
 
 class Aufenthalt(Base, IDMixin, TimestampMixin):
@@ -80,3 +85,32 @@ class Aufenthalt(Base, IDMixin, TimestampMixin):
     @property
     def anzahl_naechte(self) -> int:
         return (self.abreise - self.ankunft).days
+
+
+class BuchungLeistung(Base, IDMixin, TimestampMixin):
+    """
+    Leistungsbezug innerhalb eines Aufenthalts: Personen (E/K/Kleinkinder),
+    Stellplatz, Strom, Auto … – je mit Anzahl und eigenem Zeitraum.
+
+    So lässt sich abbilden, dass z.B. 2 von 4 Kindern zwei Nächte weg sind,
+    dass Personen (evtl. mit eigenem Zelt) nur einen Teil des Aufenthalts
+    dabei sind – abgerechnet wird alles über diesen Aufenthalt. Die Arten
+    stehen in app/services/leistungen.py (Artikelcode für die Preise).
+    """
+    __tablename__ = "buchung_leistung"
+
+    buchung_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("buchung.id"), index=True)
+    art: Mapped[str] = mapped_column(String(30))
+    anzahl: Mapped[int] = mapped_column(Integer, default=1)
+    von: Mapped[date] = mapped_column(Date)
+    bis: Mapped[date] = mapped_column(Date)
+    """Exklusiv (Abreisetag). Bei Stückleistungen (z.B. Wassertank) gleich `von`."""
+    kurtaxepflichtig: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    """Nur für Erwachsene relevant: False z.B. bei Wohnsitz in der Gemeinde."""
+    bemerkung: Mapped[str | None] = mapped_column(String(200))
+
+    buchung: Mapped["Buchung"] = relationship(back_populates="leistungen")
+
+    @property
+    def naechte(self) -> int:
+        return max(0, (self.bis - self.von).days)

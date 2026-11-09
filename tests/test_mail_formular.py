@@ -94,7 +94,7 @@ def test_formular_deutsch_punktdatum_kleinkinder_zelt():
     assert p.gast_telefon == "+41 79 555 01 23"
     assert (p.gewuenscht_von, p.gewuenscht_bis) == (date(2027, 8, 14), date(2027, 8, 17))
     assert p.stellplatz_typ == "zeltwiese"
-    assert (p.anzahl_erwachsene, p.anzahl_kinder) == (2, 2)  # 1 Kind + 1 Kleinkind
+    assert (p.anzahl_erwachsene, p.anzahl_kinder, p.anzahl_kleinkinder) == (2, 1, 1)
     assert "Kinder: 1 (5 bis 15 Jahre), 1 Kleinkinder (bis 5 Jahre)" in p.bemerkung
     assert p.sprache == "de"
 
