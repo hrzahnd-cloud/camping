@@ -16,6 +16,8 @@ email-validator==2.2.0
 reportlab==4.2.5
 # Logo auf der Rechnung (prüfen, verkleinern); kommt auch mit reportlab
 pillow==13.0.0
+# Excel-Export der Auswertungen (Saison-Zusammenstellung für die Buchhaltung)
+openpyxl==3.1.5
 
 # Tests
 pytest==8.3.4
@@ -29,4 +31,3 @@ certifi>=2026.10.19
 # Zukünftig zu ergänzen, sobald aktiviert (siehe Konzeptdokument):
 # mailchimp-marketing   # Newsletter-Anbindung (Abschnitt 11.3/11.4)
 # zeep                  # SOAP-Client für Feratel Deskline 3.0 (Abschnitt 5)
-# openpyxl               # Excel-Export der Auswertungen (Abschnitt 13)

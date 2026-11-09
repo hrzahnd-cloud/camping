@@ -30,6 +30,12 @@ def mwst_betrag_aus_brutto(betrag_brutto: Decimal, satz_prozent: Decimal) -> Dec
     return mwst.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def zahl_text(x) -> str:
+    """Zahl ohne überflüssige Nullen und ohne Exponent: 20 -> «20», 3.80 -> «3.8», 2.50 -> «2.5»."""
+    d = Decimal(str(x)).normalize()
+    return f"{d:f}"
+
+
 def mwst_je_satz(betraege) -> dict[Decimal, tuple[Decimal, Decimal]]:
     """
     MWST auf dem Rechnungstotal: je Satz die Summe der Bruttobeträge und die
