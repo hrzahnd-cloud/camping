@@ -93,8 +93,8 @@ def grunddaten_einspielen(db) -> None:
         ("Camper", "CAMPER", "stellplatz", "pro_nacht", mwst_beherbergung, "18.00", "16.00"),
         ("Wohnwagen", "WOHNWAGEN", "stellplatz", "pro_nacht", mwst_beherbergung, "17.00", "15.00"),
         ("Zelt", "ZELT", "stellplatz", "pro_nacht", mwst_beherbergung, "14.00", "12.00"),
-        ("Auto", "AUTO", "zusatzleistung", "pro_nacht", mwst_normal, "3.00", "3.00"),
-        ("Motorrad", "MOTORRAD", "zusatzleistung", "pro_nacht", mwst_normal, "2.00", "1.70"),
+        ("Auto", "AUTO", "zusatzleistung", "pro_nacht", mwst_beherbergung, "3.00", "3.00"),
+        ("Motorrad", "MOTORRAD", "zusatzleistung", "pro_nacht", mwst_beherbergung, "2.00", "1.70"),
     ]
     for bezeichnung, code, kategorie, einheit, mwstsatz, preis_haupt, preis_vor in artikel_saisonal:
         artikel = Artikel(
@@ -110,9 +110,9 @@ def grunddaten_einspielen(db) -> None:
     # Saisonunabhängige Positionen (kein saison_id -> ganzjährig gültig)
     artikel_ganzjaehrig = [
         ("Kleinkinder (0–5 Jahre)", "KLEINKINDER", "person", "pro_person_nacht", mwst_beherbergung, "0.00"),
-        ("Elektrische Energie", "STROM", "zusatzleistung", "pro_tag", mwst_normal, "4.00"),
-        ("Umweltabgabe", "UMWELTABGABE", "zusatzleistung", "pro_nacht", mwst_normal, "1.00"),
-        ("Wassertankfüllung", "WASSERTANK", "zusatzleistung", "stueck", mwst_normal, "5.00"),
+        ("Elektrische Energie", "STROM", "zusatzleistung", "pro_tag", mwst_beherbergung, "4.00"),
+        ("Umweltabgabe", "UMWELTABGABE", "zusatzleistung", "pro_nacht", mwst_beherbergung, "1.00"),
+        ("Wassertankfüllung", "WASSERTANK", "zusatzleistung", "stueck", mwst_beherbergung, "5.00"),
         ("Zwärgli (2 Personen/Nacht)", "ZWAERGLI", "unterkunftseinheit", "pro_nacht", mwst_beherbergung, "40.00"),
         ("Spycher (2 Personen/Nacht)", "SPYCHER", "unterkunftseinheit", "pro_nacht", mwst_beherbergung, "60.00"),
     ]

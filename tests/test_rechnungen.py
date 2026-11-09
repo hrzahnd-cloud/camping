@@ -57,7 +57,7 @@ def test_rechnung_bei_abreise_mit_saisonzeilen_taxen_und_anzahlung(client, db, g
         ("Kinder (6–15), Hauptsaison", "1", "4.00", "4.00", "3.8"),
         ("Camper, Vorsaison", "1", "16.00", "16.00", "3.8"),
         ("Camper, Hauptsaison", "1", "18.00", "18.00", "3.8"),
-        ("Umweltabgabe", "2", "1.00", "2.00", "8.1"),
+        ("Umweltabgabe", "2", "1.00", "2.00", "3.8"),
         ("Kurtaxe Aeschi", "4", "3.50", "14.00", "0"),
         ("Beherbergungsabgabe Kanton Bern", "4", "1.00", "4.00", "0"),
     ]
