@@ -52,6 +52,9 @@ class CheckIn(BaseModel):
     """Kinder 6–15 Jahre."""
     anzahl_kleinkinder: int = Field(default=0, ge=0, le=50)
     """Kleinkinder 0–5 Jahre."""
+    anzahl_autos: int | None = Field(default=None, ge=0, le=20)
+    """Leer = Vorschlag je Stellplatz (Zelt/Wohnwagen 1 Auto, sonst keines)."""
+    anzahl_motorraeder: int = Field(default=0, ge=0, le=20)
     bemerkung: str | None = None
 
 
@@ -130,7 +133,8 @@ def einchecken(daten: CheckIn, db: Session = Depends(get_db)):
         anzahl_kleinkinder=daten.anzahl_kleinkinder, bemerkung=daten.bemerkung,
         status="eingecheckt", hauptgast_id=gast.id, reservationsanfrage_id=anfrage.id if anfrage else None,
     )
-    buchung.leistungen = lst.grundzeilen(buchung)
+    autos = lst.standard_fahrzeuge(daten.stellplatz_typ)[0] if daten.anzahl_autos is None else daten.anzahl_autos
+    buchung.leistungen = lst.grundzeilen(buchung, autos=autos, motorraeder=daten.anzahl_motorraeder)
     db.add(buchung)
     db.flush()
     db.add(Aufenthalt(buchung_id=buchung.id, gast_id=gast.id, ankunft=daten.von, abreise=daten.bis))

@@ -17,6 +17,8 @@ export const LAENDER = { CH: "Schweiz", DE: "Deutschland", NL: "Niederlande", FR
   IE: "Irland", LI: "Liechtenstein", US: "USA", CA: "Kanada", AU: "Australien", NZ: "Neuseeland", IL: "Israel",
   CN: "China", JP: "Japan", KR: "Südkorea", IN: "Indien" };
 export const ANDERES = "__anderes";
+// Zelt und Wohnwagen kommen meist mit dem Auto; Camper, Zwärgli, Spycher ohne (Fahrräder werden nicht erfasst)
+const autoVorschlag = (typ) => (["zeltwiese", "wohnwagen"].includes(typ) ? 1 : 0);
 
 function bereich(ansicht, bezug, frei) {
   if (ansicht === "monat") {
@@ -611,10 +613,21 @@ export function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
     bis: eintrag?.gewuenscht_bis || isoDatum(plusTage(new Date(), 1)),
     anzahl_erwachsene: eintrag?.anzahl_erwachsene ?? 2, anzahl_kinder: eintrag?.anzahl_kinder ?? 0,
     anzahl_kleinkinder: eintrag?.anzahl_kleinkinder ?? 0, bemerkung: "",
+    anzahl_autos: autoVorschlag(eintrag?.stellplatz_typ || "zeltwiese"), anzahl_motorraeder: 0,
   });
+  const [fahrzeugGewaehlt, setFahrzeugGewaehlt] = useState(false);
   const [fehler, setFehler] = useState(null);
   const [laeuft, setLaeuft] = useState(false);
-  const feld = (name) => ({ id: `ci-${name}`, value: werte[name], onChange: (e) => setWerte({ ...werte, [name]: e.target.value }) });
+  const feld = (name) => ({
+    id: `ci-${name}`, value: werte[name],
+    onChange: (e) => {
+      const neu = { ...werte, [name]: e.target.value };
+      // Fahrzeug-Vorschlag folgt dem Stellplatz, solange es niemand von Hand geändert hat
+      if (name === "stellplatz_typ" && !fahrzeugGewaehlt) neu.anzahl_autos = autoVorschlag(e.target.value);
+      if (name === "anzahl_autos" || name === "anzahl_motorraeder") setFahrzeugGewaehlt(true);
+      setWerte(neu);
+    },
+  });
 
   const nationalitaet = werte.nationalitaet === ANDERES ? werte.nationalitaet_iso.trim().toUpperCase() : werte.nationalitaet;
 
@@ -630,6 +643,7 @@ export function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
         plz: werte.plz || null, ort: werte.ort || null, land: werte.land || null, bemerkung: werte.bemerkung || null,
         anzahl_erwachsene: Number(werte.anzahl_erwachsene), anzahl_kinder: Number(werte.anzahl_kinder),
         anzahl_kleinkinder: Number(werte.anzahl_kleinkinder),
+        anzahl_autos: Number(werte.anzahl_autos || 0), anzahl_motorraeder: Number(werte.anzahl_motorraeder || 0),
       }));
     } catch (err) { setFehler(err.message); } finally { setLaeuft(false); }
   };
@@ -662,6 +676,8 @@ export function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
         <div className="feld"><label htmlFor="ci-anzahl_erwachsene">Erwachsene (ab 16)</label><input type="number" min="0" max="50" required {...feld("anzahl_erwachsene")} /></div>
         <div className="feld"><label htmlFor="ci-anzahl_kinder">Kinder (6–15)</label><input type="number" min="0" max="50" required {...feld("anzahl_kinder")} /></div>
         <div className="feld"><label htmlFor="ci-anzahl_kleinkinder">Kleinkinder (0–5)</label><input type="number" min="0" max="50" required {...feld("anzahl_kleinkinder")} /></div>
+        <div className="feld"><label htmlFor="ci-anzahl_autos">Autos</label><input type="number" min="0" max="20" {...feld("anzahl_autos")} /></div>
+        <div className="feld"><label htmlFor="ci-anzahl_motorraeder">Motorräder</label><input type="number" min="0" max="20" {...feld("anzahl_motorraeder")} /></div>
         <div className="feld breit"><label htmlFor="ci-bemerkung">Bemerkung</label><textarea rows="2" {...feld("bemerkung")} /></div>
       </div>
       <details className="optional">

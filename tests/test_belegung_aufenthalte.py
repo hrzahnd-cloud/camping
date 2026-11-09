@@ -201,7 +201,7 @@ def test_leistungen_checkin_verlaengern_abwesenheit_zusatzpersonen_und_taxen(cli
                                           "anzahl_erwachsene": 2, "anzahl_kinder": 4, "anzahl_kleinkinder": 1})
     bid = r.json()["buchung_id"]
     d = _leist(client, bid)
-    assert _kurz(d) == [("erwachsene", 2, t(0), t(5)), ("kinder", 4, t(0), t(5)),
+    assert _kurz(d) == [("auto", 1, t(0), t(5)), ("erwachsene", 2, t(0), t(5)), ("kinder", 4, t(0), t(5)),
                         ("kleinkinder", 1, t(0), t(5)), ("umweltabgabe", 1, t(0), t(5)), ("wohnwagen", 1, t(0), t(5))]
     assert [(x["bezeichnung"], x["personennaechte"], x["betrag"]) for x in d["taxen"]] == \
         [("Kurtaxe Aeschi", 10, "35.00"), ("Beherbergungsabgabe Kanton Bern", 10, "10.00")]
@@ -253,3 +253,19 @@ def test_leistungen_checkin_verlaengern_abwesenheit_zusatzpersonen_und_taxen(cli
     client.post(f"/aufenthalte/{bid}/abreise", json={"datum": t(2)})
     z = _kurz(_leist(client, bid))
     assert all(x[3] <= t(2) for x in z) and not any(x[0] == "zeltwiese" for x in z)
+
+
+
+def test_checkin_fahrzeuge_vorschlag_und_anpassen(client):
+    basis = {"nationalitaet": "CH", "vorname": "Fahr", "nachname": "Zeug", "von": str(HEUTE), "bis": str(HEUTE + timedelta(days=2))}
+    arten = lambda bid: sorted((z["art"], z["anzahl"]) for z in client.get(f"/aufenthalte/{bid}/leistungen").json()["zeilen"]  # noqa: E731
+                               if z["art"] in ("auto", "motorrad"))
+    zelt = client.post("/aufenthalte", json={**basis, "stellplatz_typ": "zeltwiese"}).json()["buchung_id"]
+    assert arten(zelt) == [("auto", 1)]
+    camper = client.post("/aufenthalte", json={**basis, "stellplatz_typ": "camper"}).json()["buchung_id"]
+    assert arten(camper) == []
+    spycher = client.post("/aufenthalte", json={**basis, "stellplatz_typ": "spycher"}).json()["buchung_id"]
+    assert arten(spycher) == []
+    ww = client.post("/aufenthalte", json={**basis, "stellplatz_typ": "wohnwagen", "anzahl_autos": 0,
+                                           "anzahl_motorraeder": 2}).json()["buchung_id"]
+    assert arten(ww) == [("motorrad", 2)]
