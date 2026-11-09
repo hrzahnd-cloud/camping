@@ -24,6 +24,7 @@ from app.models.rechnung import Rechnung, Rechnungsposition
 from app.schemas.rechnung import RechnungOut, RechnungspositionCreate
 from app.services.mwst import mwst_betrag_aus_brutto, prozent_fuer_artikel
 from app.services import antwortmail as am
+from app.services import logo
 from app.services import rechnung_aufenthalt as ra
 from app.services.pdf_rechnung import RechnungsDaten, RechnungsPositionZeile, rechnung_pdf
 from app.services.rechnungsnummer import naechste_rechnungsnummer
@@ -342,7 +343,7 @@ def _pdf_daten(db: Session, r: Rechnung) -> RechnungsDaten:
                                            einzelpreis=Decimal(str(p.einzelpreis)), betrag=Decimal(str(p.betrag)),
                                            mwstsatz_prozent=Decimal(str(p.mwstsatz_prozent))) for p in r.positionen],
         gesamtbetrag=Decimal(str(r.gesamtbetrag)), anzahlung=Decimal(str(r.anzahlung or 0)),
-        zahlungsvermerk=vermerk, storniert=r.status == "storniert")
+        zahlungsvermerk=vermerk, storniert=r.status == "storniert", logo=(logo.lesen(db) or (None,))[0])
 
 
 @router.get("/{rechnung_id}/pdf")

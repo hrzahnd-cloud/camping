@@ -129,3 +129,28 @@ def test_zwaergli_rechnung_mit_inbegriffenen_personen_und_wassertank(client, db,
     assert p["Inbegriffen im Zwärgli (2 Personen je Nacht)"] == "-32.00"
     assert p["Wassertankfüllung, 10.7. – ab 2 Nächten inbegriffen"] == "0.00"
     assert d["gesamtbetrag"] == "123.00"   # 80 + 48 − 32 + Kurtaxe 21 + Beherbergungsabgabe 6
+
+
+def test_logo_und_mwst_auf_dem_total(client, db, grunddaten):
+    import base64
+    from io import BytesIO
+
+    from PIL import Image
+
+    puffer = BytesIO()
+    Image.new("RGB", (2000, 1400), (240, 120, 20)).save(puffer, "JPEG")
+    url = "data:image/jpeg;base64," + base64.b64encode(puffer.getvalue()).decode()
+    assert client.get("/einstellungen/logo").status_code == 404
+    assert client.put("/einstellungen/logo", json={"bild": "data:text/plain;base64,aGFsbG8="}).status_code == 400
+    assert client.put("/einstellungen/logo", json={"bild": url}).status_code == 204
+    logo = client.get("/einstellungen/logo")
+    assert logo.status_code == 200 and logo.headers["content-type"] == "image/jpeg"
+    assert max(Image.open(BytesIO(logo.content)).size) == 1200   # verkleinert
+    # MWST einmal auf dem Total je Satz, unabhängig von der Anzahlung
+    d = client.post(f"/rechnungen/aus-aufenthalt/{_aufenthalt(db, anzahlung='50')}", json={"zahlungsart": "bar"}).json()
+    basis = sum(Decimal(p["betrag"]) for p in d["positionen"] if p["mwstsatz_prozent"] == "3.8")
+    assert d["mwst_betrag_total"] == str((basis - basis / Decimal("1.038")).quantize(Decimal("0.01")))
+    pdf = client.get(f"/rechnungen/{d['id']}/pdf")
+    assert pdf.status_code == 200 and b"/Subtype /Image" in pdf.content
+    assert client.delete("/einstellungen/logo").status_code == 204
+    assert client.get("/einstellungen/logo").status_code == 404

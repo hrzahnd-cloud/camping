@@ -637,3 +637,7 @@ table.rechnungsliste .zahl { text-align: right; font-variant-numeric: tabular-nu
 .rechnung-abschnitt .abschnitt-kopf .aktionen { display: inline-flex; gap: 12px; }
 .rechnung-panel { gap: 12px; }
 .rechnung-abschnitt .rechnung-panel h2 { font-size: 1.125rem; }
+.logo-feld .label { font-size: 0.875rem; color: var(--tinte-leise); }
+.logo-zeile { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.logo-zeile img { max-height: 72px; max-width: 160px; border: 1px solid var(--linie); border-radius: var(--radius-klein); background: #fff; padding: 4px; }
+.logo-zeile label.knopf { display: inline-flex; cursor: pointer; color: inherit; font-size: inherit; }

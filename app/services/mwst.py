@@ -30,6 +30,22 @@ def mwst_betrag_aus_brutto(betrag_brutto: Decimal, satz_prozent: Decimal) -> Dec
     return mwst.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def mwst_je_satz(betraege) -> dict[Decimal, tuple[Decimal, Decimal]]:
+    """
+    MWST auf dem Rechnungstotal: je Satz die Summe der Bruttobeträge und die
+    darin enthaltene MWST, einmal gerundet (nicht Zeile für Zeile). `betraege`
+    sind Paare (brutto, satz_prozent); Sätze 0 % (Taxen) entfallen. Eine
+    Anzahlung ändert daran nichts – sie ist bereits im Total enthalten.
+    """
+    summen: dict[Decimal, Decimal] = {}
+    for brutto, satz in betraege:
+        satz = Decimal(str(satz))
+        if satz:
+            summen[satz] = summen.get(satz, Decimal("0")) + Decimal(str(brutto))
+    return {satz: (basis.quantize(Decimal("0.01")), mwst_betrag_aus_brutto(basis, satz))
+            for satz, basis in sorted(summen.items())}
+
+
 def gueltigen_mwstsatz_ermitteln(mwstsaetze: list, stichtag) -> "object | None":
     """
     Ermittelt aus einer Liste von Mwstsatz-Datensätzen (gleicher `code`,

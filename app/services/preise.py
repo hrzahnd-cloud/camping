@@ -125,12 +125,6 @@ class Preisrechnung:
     fehlende_preise: bool
 
 
-def _mwst_anteil(betrag: Decimal, prozent: Decimal | None) -> Decimal:
-    if not prozent:
-        return NULL
-    return (betrag - betrag / (1 + prozent / 100)).quantize(Decimal("0.01"))
-
-
 def berechne(db: Session, b: Buchung, art_code) -> Preisrechnung:
     """
     Preise der Leistungen eines Aufenthalts. `art_code(art)` liefert den
@@ -140,7 +134,7 @@ def berechne(db: Session, b: Buchung, art_code) -> Preisrechnung:
 
     ctx = Preiskontext(db)
     naechte_total = (b.bis - b.von).days
-    zeilen, mwst_total = [], NULL
+    zeilen, mwst_basis = [], []
     for z in sorted(b.leistungen, key=lambda z: (z.von, z.art)):
         code = art_code(z.art)
         zp = ZeilenPreis(leistung_id=z.id, bezeichnung=lst.ART[z.art].bezeichnung if z.art in lst.ART else z.art,
@@ -165,7 +159,7 @@ def berechne(db: Session, b: Buchung, art_code) -> Preisrechnung:
             zp.betrag += anteil
             prozent = ctx.mwst(code, tag)
             zp.mwst_prozent = prozent
-            mwst_total += _mwst_anteil(anteil, prozent)
+            mwst_basis.append((anteil, prozent or 0))
         if zp.naechte_ohne_preis and not zp.hinweis:
             zp.hinweis = ("kein Preis hinterlegt" if zp.naechte_ohne_preis == len(tage)
                           else f"{zp.naechte_ohne_preis} von {len(tage)} Nächten ohne Preis (ausserhalb der Saison)")
@@ -186,11 +180,13 @@ def berechne(db: Session, b: Buchung, art_code) -> Preisrechnung:
                 if n and p:
                     ab.betrag -= p * n
                     ab.mwst_prozent = ctx.mwst(art_code(art), tag)
-                    mwst_total -= _mwst_anteil(p * n, ab.mwst_prozent)
+                    mwst_basis.append((-p * n, ab.mwst_prozent or 0))
         if ab.betrag:
             abzuege.append(ab)
 
     total = sum((z.betrag for z in zeilen + abzuege), NULL)
+    from app.services.mwst import mwst_je_satz
+    mwst_total = sum((m for _, m in mwst_je_satz(mwst_basis).values()), NULL)
     return Preisrechnung(zeilen=zeilen, abzuege=abzuege, total=total.quantize(Decimal("0.01")),
                          mwst_total=mwst_total.quantize(Decimal("0.01")),
                          fehlende_preise=any(z.naechte_ohne_preis for z in zeilen))
