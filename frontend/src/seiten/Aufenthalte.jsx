@@ -23,8 +23,9 @@ const chf = (x) => `CHF ${Number(x).toFixed(2)}`;
 const hashParameter = () => new URLSearchParams(window.location.hash.split("?")[1] || "");
 const anzahlText = (n, eins, mehr) => `${n} ${n === 1 ? eins : mehr}`;
 
-export default function Aufenthalte() {
+export default function Aufenthalte({ module = [] }) {
   const heute = heuteIso();
+  const preiseAktiv = module.some((m) => m.code === "artikel" && m.aktiv);
   const [register, setRegister] = useState("platz");
   const [daten, setDaten] = useState(null);
   const [fehler, setFehler] = useState(null);
@@ -95,7 +96,7 @@ export default function Aufenthalte() {
       {schublade && (
         <Schublade breit={schublade.art === "aufenthalt"} titel="Aufenthalt" onSchliessen={() => setSchublade(null)}>
           {schublade.art === "aufenthalt" && (
-            <AufenthaltPanel id={schublade.id} heute={heute} onGeaendert={laden}
+            <AufenthaltPanel id={schublade.id} heute={heute} preiseAktiv={preiseAktiv} onGeaendert={laden}
               onGeloescht={() => { laden(); setSchublade(null); }} />
           )}
           {schublade.art === "reservation" && (
@@ -249,7 +250,7 @@ function ReservationPanel({ id, heute, onCheckin }) {
 
 // --- Aufenthalt: Gast, Zeitraum, Leistungen, Taxen ------------------------------------
 
-function AufenthaltPanel({ id, heute, onGeaendert, onGeloescht }) {
+function AufenthaltPanel({ id, heute, preiseAktiv, onGeaendert, onGeloescht }) {
   const [auf, setAuf] = useState(null);
   const [leist, setLeist] = useState(null);
   const [fehler, setFehler] = useState(null);
@@ -307,7 +308,7 @@ function AufenthaltPanel({ id, heute, onGeaendert, onGeloescht }) {
       </section>
 
       {/* Leistungen */}
-      <LeistungenAbschnitt id={id} auf={auf} leist={leist} gesperrt={gesperrt} laeuft={laeuft}
+      <LeistungenAbschnitt id={id} auf={auf} leist={leist} gesperrt={gesperrt} laeuft={laeuft} preiseAktiv={preiseAktiv}
         ausfuehren={(fn) => ausfuehren(async () => setLeist(await fn()))} />
 
       {/* Gast */}
@@ -444,11 +445,14 @@ function mengeText(z) {
   return anzahlText(z.menge, "Nacht", "Nächte");
 }
 
-function LeistungenAbschnitt({ id, auf, leist, gesperrt, laeuft, ausfuehren }) {
+function LeistungenAbschnitt({ id, auf, leist, gesperrt, laeuft, preiseAktiv, ausfuehren }) {
   const [form, setForm] = useState(null); // { art: "neu" } | { art: "aendern", zeile } | { art: "abwesend", zeile }
   const fertig = async (fn) => { await ausfuehren(fn); setForm(null); };
   const zeilen = leist.zeilen;
   const gruppen = [...new Set(zeilen.map((z) => z.gruppe))];
+  const spalten = 4 + (preiseAktiv ? 1 : 0) + (gesperrt ? 0 : 1);
+  const preisJe = Object.fromEntries(leist.preise.zeilen.map((p) => [p.leistung_id, p]));
+  const taxenTotal = leist.taxen.reduce((s, t) => s + Number(t.betrag), 0);
 
   return (
     <section className="panel-abschnitt">
@@ -463,19 +467,24 @@ function LeistungenAbschnitt({ id, auf, leist, gesperrt, laeuft, ausfuehren }) {
       )}
       <div className="tabelle-rahmen">
       <table className="leistungen">
-        <thead><tr><th>Leistung</th><th className="zahl">Anz.</th><th>Zeitraum</th><th className="zahl">Menge</th>{!gesperrt && <th><span className="sr-only">Aktionen</span></th>}</tr></thead>
+        <thead><tr><th>Leistung</th><th className="zahl">Anz.</th><th>Zeitraum</th><th className="zahl">Menge</th>
+          {preiseAktiv && <th className="zahl">Betrag</th>}{!gesperrt && <th><span className="sr-only">Aktionen</span></th>}</tr></thead>
         {gruppen.map((g) => (
           <tbody key={g}>
-            <tr className="gruppe"><th colSpan={gesperrt ? 4 : 5}>{GRUPPEN[g] ?? g}</th></tr>
+            <tr className="gruppe"><th colSpan={spalten}>{GRUPPEN[g] ?? g}</th></tr>
             {zeilen.filter((z) => z.gruppe === g).map((z) => (
               <LeistungZeile key={z.id} z={z} auf={auf} gesperrt={gesperrt} laeuft={laeuft} form={form} setForm={setForm}
+                preis={preiseAktiv ? preisJe[z.id] ?? null : undefined} spalten={spalten}
                 onAendern={(w) => fertig(() => api.patch(`/aufenthalte/${id}/leistungen/${z.id}`, w))}
                 onAbwesend={(w) => fertig(() => api.post(`/aufenthalte/${id}/leistungen/${z.id}/abwesenheit`, w))}
                 onLoeschen={() => fertig(() => api.delete(`/aufenthalte/${id}/leistungen/${z.id}`))} />
             ))}
           </tbody>
         ))}
-        {zeilen.length === 0 && <tbody><tr><td colSpan={5} className="leer klein">Keine Leistungen erfasst.</td></tr></tbody>}
+        {preiseAktiv && leist.preise.abzuege.map((a) => (
+          <tbody key={a.bezeichnung}><tr className="abzug"><td colSpan={4}>{a.bezeichnung}</td><td className="zahl">{chf(a.betrag)}</td>{!gesperrt && <td />}</tr></tbody>
+        ))}
+        {zeilen.length === 0 && <tbody><tr><td colSpan={spalten} className="leer klein">Keine Leistungen erfasst.</td></tr></tbody>}
       </table>
       </div>
 
@@ -493,11 +502,25 @@ function LeistungenAbschnitt({ id, auf, leist, gesperrt, laeuft, ausfuehren }) {
         )}
         <p className="hinweis klein">Beherbergungsabgabe für alle Erwachsenen, Kurtaxe nur für Kurtaxepflichtige. Kinder und Kleinkinder ohne Taxen.</p>
       </div>
+
+      {preiseAktiv && (
+        <div className="total-box">
+          {leist.preise.fehlende_preise && (
+            <p className="meldung warnung">Für einzelne Leistungen fehlt ein Preis, meist weil die Nächte ausserhalb der Saison liegen – siehe «Artikel &amp; Preise».</p>
+          )}
+          <dl>
+            <div><dt>Leistungen</dt><dd>{chf(leist.preise.total)}</dd></div>
+            <div><dt>Taxen</dt><dd>{chf(taxenTotal)}</dd></div>
+            <div className="summe"><dt>Total</dt><dd>{chf(leist.preise.total_mit_taxen)}</dd></div>
+          </dl>
+          <p className="hinweis klein">Endpreise; darin enthalten MWST {chf(leist.preise.mwst_total)}. Taxen ohne MWST.</p>
+        </div>
+      )}
     </section>
   );
 }
 
-function LeistungZeile({ z, auf, gesperrt, laeuft, form, setForm, onAendern, onAbwesend, onLoeschen }) {
+function LeistungZeile({ z, auf, gesperrt, laeuft, form, setForm, preis, spalten, onAendern, onAbwesend, onLoeschen }) {
   const offen = form?.zeile?.id === z.id ? form.art : null;
   const [loeschen, setLoeschen] = useState(false);
   const zeitraum = z.einheit === "stueck" ? datumKurz(z.von) : `${datumKurz(z.von)} – ${datumKurz(z.bis)}`;
@@ -511,6 +534,14 @@ function LeistungZeile({ z, auf, gesperrt, laeuft, form, setForm, onAendern, onA
         <td className="zahl">{z.anzahl}</td>
         <td className={ganz ? "leise" : "teilzeit"}>{zeitraum}</td>
         <td className="zahl">{mengeText(z)}</td>
+        {preis !== undefined && (
+          <td className="zahl betrag">
+            {preis ? chf(preis.betrag) : "–"}
+            {preis?.einzelpreis && Number(preis.betrag) > 0 && <span className="leise klein block">à {Number(preis.einzelpreis).toFixed(2)}</span>}
+            {preis?.einzelpreise?.length > 1 && <span className="leise klein block">à {preis.einzelpreise.map((x) => Number(x).toFixed(2)).join(" / ")}</span>}
+            {preis?.hinweis && <span className={`klein block ${preis.hinweis.includes("inbegriffen") ? "leise" : "warn-text"}`}>{preis.hinweis}</span>}
+          </td>
+        )}
         {!gesperrt && (
           <td className="zeilen-aktionen">
             {!form && (
@@ -526,7 +557,7 @@ function LeistungZeile({ z, auf, gesperrt, laeuft, form, setForm, onAendern, onA
         )}
       </tr>
       {offen && (
-        <tr className="formzeile"><td colSpan={5}>
+        <tr className="formzeile"><td colSpan={spalten}>
           {offen === "aendern" && <LeistungFormular zeile={z} auf={auf} laeuft={laeuft} onAbbrechen={() => setForm(null)} onSpeichern={onAendern} />}
           {offen === "abwesend" && <AbwesenheitFormular zeile={z} laeuft={laeuft} onAbbrechen={() => setForm(null)} onSpeichern={onAbwesend} />}
         </td></tr>

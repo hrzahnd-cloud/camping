@@ -12,6 +12,7 @@ werden der Stellplatz-Typ und optional die Platznummer als Freitext.
 """
 import uuid
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,6 +25,7 @@ from app.models.buchung import Aufenthalt, Buchung, BuchungLeistung, Gast
 from app.models.reservation import Reservationsanfrage
 from app.schemas.reservation import StellplatzTyp
 from app.services import leistungen as lst
+from app.services import preise as pr
 
 router = APIRouter(prefix="/aufenthalte", tags=["Aufenthalte"])
 
@@ -309,9 +311,30 @@ class TaxeOut(BaseModel):
     betrag: str
 
 
+class PreisZeile(BaseModel):
+    leistung_id: uuid.UUID | None
+    bezeichnung: str
+    betrag: str
+    einzelpreis: str | None
+    einzelpreise: list[str]
+    mwst_prozent: float | None
+    hinweis: str | None
+
+
+class Preise(BaseModel):
+    """Beträge der Leistungen (Endpreise inkl. MWST), ohne Taxen."""
+    zeilen: list[PreisZeile]
+    abzuege: list[PreisZeile]
+    total: str
+    mwst_total: str
+    fehlende_preise: bool
+    total_mit_taxen: str
+
+
 class Leistungen(BaseModel):
     zeilen: list[LeistungOut]
     taxen: list[TaxeOut]
+    preise: Preise
     personen_je_nacht: list[dict]
     arten: list[dict]
 
@@ -344,6 +367,17 @@ class Abwesenheit(BaseModel):
 
 def _leistungen(db: Session, b: Buchung) -> Leistungen:
     zeilen = sorted(b.leistungen, key=lambda z: ([a.code for a in lst.ARTEN].index(z.art) if z.art in lst.ART else 99, z.von))
+    taxen = lst.taxen(db, b)
+    rechnung = pr.berechne(db, b, lambda art: lst.ART[art].artikel_code if art in lst.ART else art.upper())
+
+    def pz(z):
+        return PreisZeile(leistung_id=z.leistung_id, bezeichnung=z.bezeichnung, betrag=str(z.betrag.quantize(Decimal("0.01"))),
+                          einzelpreis=str(z.einzelpreis) if z.einzelpreis is not None else None,
+                          einzelpreise=[str(x) for x in z.einzelpreise],
+                          mwst_prozent=float(z.mwst_prozent) if z.mwst_prozent is not None else None, hinweis=z.hinweis)
+    preise = Preise(zeilen=[pz(z) for z in rechnung.zeilen], abzuege=[pz(z) for z in rechnung.abzuege],
+                    total=str(rechnung.total), mwst_total=str(rechnung.mwst_total), fehlende_preise=rechnung.fehlende_preise,
+                    total_mit_taxen=str(rechnung.total + sum((t.betrag for t in taxen), Decimal("0.00"))))
     return Leistungen(
         zeilen=[LeistungOut(
             id=z.id, art=z.art, bezeichnung=lst.ART[z.art].bezeichnung if z.art in lst.ART else z.art,
@@ -352,7 +386,8 @@ def _leistungen(db: Session, b: Buchung) -> Leistungen:
             anzahl=z.anzahl, von=z.von, bis=z.bis, naechte=z.naechte, menge=lst.menge(z),
             kurtaxepflichtig=z.kurtaxepflichtig, bemerkung=z.bemerkung) for z in zeilen],
         taxen=[TaxeOut(typ=t.typ, bezeichnung=t.bezeichnung, personennaechte=t.personennaechte, betrag=str(t.betrag))
-               for t in lst.taxen(db, b)],
+               for t in taxen],
+        preise=preise,
         personen_je_nacht=[{"datum": d, "erwachsene": v[0], "kinder": v[1], "kleinkinder": v[2]}
                            for d, v in lst.personen_je_nacht(b).items()],
         arten=[{"code": a.code, "bezeichnung": a.bezeichnung, "gruppe": a.gruppe, "einheit": a.einheit} for a in lst.ARTEN],

@@ -31,6 +31,7 @@ from app.routers import (
     hesta,
     mwst,
     postfach,
+    preise,
     rechnungen,
     reservationsanfragen,
     vorlagen,
@@ -96,6 +97,7 @@ app.include_router(buchungen.router)
 app.include_router(aufenthalte.router)
 app.include_router(reservationsanfragen.router)
 app.include_router(artikel.router)
+app.include_router(preise.router)
 app.include_router(rechnungen.router)
 app.include_router(auswertungen.router)
 app.include_router(hesta.router)

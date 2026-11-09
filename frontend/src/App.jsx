@@ -10,6 +10,7 @@ import Gaeste from "./seiten/Gaeste.jsx";
 import Einstellungen from "./seiten/Einstellungen.jsx";
 import Modulseite from "./seiten/Modulseite.jsx";
 import Aufenthalte from "./seiten/Aufenthalte.jsx";
+import ArtikelPreise from "./seiten/ArtikelPreise.jsx";
 
 // Reihenfolge = Reihenfolge im Menü. Module, die unter Einstellungen
 // ausgeschaltet sind, erscheinen nicht.
@@ -19,7 +20,7 @@ const SEITEN = [
   { code: "belegung", pfad: "belegung", name: "Belegung", icon: CalendarRange, Komponente: Belegung },
   { code: "gaeste", pfad: "gaeste", name: "Gäste", icon: Users, Komponente: Gaeste },
   { code: "buchungen", pfad: "aufenthalte", name: "Aufenthalte", icon: BedDouble, Komponente: Aufenthalte },
-  { code: "artikel", pfad: "artikel", name: "Artikel & Preise", icon: Package },
+  { code: "artikel", pfad: "artikel", name: "Artikel & Preise", icon: Package, Komponente: ArtikelPreise },
   { code: "rechnungen", pfad: "rechnungen", name: "Rechnungen", icon: FileText },
   { code: "auswertungen", pfad: "auswertungen", name: "Auswertungen", icon: BarChart3 },
   { code: "hesta", pfad: "hesta", name: "HESTA", icon: Send },

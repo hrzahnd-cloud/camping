@@ -35,9 +35,15 @@ class Mwstsatz(Base, IDMixin, TimestampMixin):
 
 
 class Saison(Base, IDMixin, TimestampMixin):
-    """Zeitraum mit eigener Preisgültigkeit (Hauptsaison, Vor-/Nachsaison)."""
+    """
+    Zeitraum mit eigener Preisgültigkeit, je Jahr: Vorsaison, Hauptsaison,
+    Nachsaison (siehe app/services/preise.py). Ausserhalb der Saisons ist der
+    Platz geschlossen; saisonale Artikel haben dann keinen Preis.
+    """
     __tablename__ = "saison"
 
+    typ: Mapped[str | None] = mapped_column(String(20))
+    """vorsaison | hauptsaison | nachsaison"""
     bezeichnung: Mapped[str] = mapped_column(String(100))
     gueltig_ab: Mapped[date] = mapped_column(Date)
     gueltig_bis: Mapped[date] = mapped_column(Date)

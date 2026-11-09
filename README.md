@@ -98,13 +98,22 @@ Beherbergungsabgabe für alle Erwachsenen, Kurtaxe nur für kurtaxepflichtige. O
 bleibt der kurze Check-in samt Abreise in der Belegung wie bisher. Preise folgen mit «Artikel &
 Preise».
 
+**Artikel & Preise (Modul, einschaltbar):** Saisons je Jahr – Vorsaison 1.5.–30.6.,
+Hauptsaison 1.7.–31.8., Nachsaison 1.9.–30.9.; Oktober bis April geschlossen (saisonale Artikel
+ohne Preis). Saisondaten und Preise je Saison zentral auf einer Seite änderbar, ganzjährige
+Preise (Strom, Umweltabgabe, Wassertank, Zwärgli, Spycher, Kleinkinder) gelten für alle Jahre.
+«Jahr aus Vorjahr übernehmen» kopiert Saisons und Preise. Im Aufenthalt erscheinen dann die
+Beträge je Leistung (je Nacht mit dem Preis der Saison), Taxen und Total inkl. MWST.
+Wassertank ab 2 Nächten inbegriffen; Zwärgli/Spycher mit 2 Personen je Nacht inbegriffen,
+weitere Personen zum Personenpreis.
+
 **Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
 Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
 @example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
 `scripts/testdaten_nebensaison.js` erzeugt ab morgen bis Mitte Dezember Nebensaison-Daten mit
 bereits eingecheckten Gästen, Anreisen, Wintercampern und offenen Anfragen.
 
-**Module:** Artikel & Preise, Rechnungen, Auswertungen, HESTA und Feratel sind im
+**Module:** Rechnungen, Auswertungen, HESTA und Feratel sind im
 Backend vorhanden, aber standardmässig ausgeschaltet. Unter *Einstellungen* lassen sie sich
 ohne Deployment einschalten; ihre eigene Oberfläche folgt schrittweise (bis dahin Verweis auf
 die API).
