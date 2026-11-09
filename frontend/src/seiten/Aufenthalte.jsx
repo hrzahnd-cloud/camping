@@ -10,6 +10,7 @@ import {
 } from "../format.js";
 import { TypMarke, typStil } from "../typen.jsx";
 import { ANDERES, Bestaetigung, CheckIn, LAENDER, Schublade } from "./Belegung.jsx";
+import { RechnungPanel, ZahlungErfassen } from "./Rechnungen.jsx";
 
 const REGISTER = [
   { code: "platz", name: "Auf dem Platz" },
@@ -26,6 +27,7 @@ const anzahlText = (n, eins, mehr) => `${n} ${n === 1 ? eins : mehr}`;
 export default function Aufenthalte({ module = [] }) {
   const heute = heuteIso();
   const preiseAktiv = module.some((m) => m.code === "artikel" && m.aktiv);
+  const rechnungenAktiv = module.some((m) => m.code === "rechnungen" && m.aktiv);
   const [register, setRegister] = useState("platz");
   const [daten, setDaten] = useState(null);
   const [fehler, setFehler] = useState(null);
@@ -96,7 +98,7 @@ export default function Aufenthalte({ module = [] }) {
       {schublade && (
         <Schublade breit={schublade.art === "aufenthalt"} titel="Aufenthalt" onSchliessen={() => setSchublade(null)}>
           {schublade.art === "aufenthalt" && (
-            <AufenthaltPanel id={schublade.id} heute={heute} preiseAktiv={preiseAktiv} onGeaendert={laden}
+            <AufenthaltPanel id={schublade.id} heute={heute} preiseAktiv={preiseAktiv} rechnungenAktiv={rechnungenAktiv} onGeaendert={laden}
               onGeloescht={() => { laden(); setSchublade(null); }} />
           )}
           {schublade.art === "reservation" && (
@@ -250,7 +252,7 @@ function ReservationPanel({ id, heute, onCheckin }) {
 
 // --- Aufenthalt: Gast, Zeitraum, Leistungen, Taxen ------------------------------------
 
-function AufenthaltPanel({ id, heute, preiseAktiv, onGeaendert, onGeloescht }) {
+function AufenthaltPanel({ id, heute, preiseAktiv, rechnungenAktiv, onGeaendert, onGeloescht }) {
   const [auf, setAuf] = useState(null);
   const [leist, setLeist] = useState(null);
   const [fehler, setFehler] = useState(null);
@@ -338,6 +340,8 @@ function AufenthaltPanel({ id, heute, preiseAktiv, onGeaendert, onGeloescht }) {
           <button className="knopf haupt" disabled={laeuft} onClick={() => ausfuehren(() => api.post(`/aufenthalte/${id}/abreise`, { datum: abreise }))}>Abreise erfassen</button>
         </div>
       )}
+      {rechnungenAktiv && <RechnungAbschnitt auf={auf} laeuft={laeuft} fehlendePreise={leist.preise.fehlende_preise}
+        total={leist.preise.total_mit_taxen} onErstellt={() => { laden(); onGeaendert(); }} />}
       {!gesperrt && auf.status === "ausgecheckt" && (
         <div className="aktionen">
           <button className="knopf leise" disabled={laeuft} onClick={() => ausfuehren(() => api.post(`/aufenthalte/${id}/abreise-zuruecknehmen`))}>
@@ -643,5 +647,48 @@ function PersonenJeNacht({ liste }) {
         ))}
       </div>
     </details>
+  );
+}
+
+function RechnungAbschnitt({ auf, fehlendePreise, total, onErstellt }) {
+  const [laeuft, setLaeuft] = useState(false);
+  const [fehler, setFehler] = useState(null);
+  const [zeigen, setZeigen] = useState(false);
+  const erstellen = async (zahlungsart) => {
+    setLaeuft(true); setFehler(null);
+    try { await api.post(`/rechnungen/aus-aufenthalt/${auf.buchung_id}`, { zahlungsart }); setZeigen(true); onErstellt(); }
+    catch (e) { setFehler(e.message); } finally { setLaeuft(false); }
+  };
+  if (auf.rechnung_id) {
+    return (
+      <section className="panel-abschnitt rechnung-abschnitt">
+        <div className="abschnitt-kopf">
+          <h3>Rechnung {auf.rechnung_nummer} <span className={`marke-status ton-${auf.rechnung_status === "bezahlt" ? "ok" : "offen"}`}>{auf.rechnung_status}</span></h3>
+          <span className="aktionen">
+            <a className="link" href={`/rechnungen/${auf.rechnung_id}/pdf`} target="_blank" rel="noreferrer">PDF öffnen</a>
+            <button className="link" onClick={() => setZeigen(!zeigen)}>{zeigen ? "Ausblenden" : "Details"}</button>
+          </span>
+        </div>
+        {zeigen && <RechnungPanel id={auf.rechnung_id} mitAufenthaltLink={false} onGeaendert={onErstellt} />}
+      </section>
+    );
+  }
+  return (
+    <section className="panel-abschnitt rechnung-abschnitt">
+      <h3>Rechnung</h3>
+      {auf.status === "eingecheckt" && <p className="hinweis">Die Rechnung entsteht bei der Abreise: zuerst unten «Abreise erfassen».</p>}
+      {auf.status === "ausgecheckt" && fehlendePreise && (
+        <p className="meldung warnung">Für einzelne Leistungen fehlt ein Preis – bitte unter «Artikel &amp; Preise» ergänzen oder die Leistung anpassen.</p>
+      )}
+      {auf.status === "ausgecheckt" && !fehlendePreise && (
+        <>
+          <p className="hinweis">Leistungen und Taxen{auf.reservationsnummer ? ", abzüglich Anzahlung" : ""}. Bei Bar oder TWINT gilt die
+            Rechnung sofort als bezahlt. Danach ist der Aufenthalt gesperrt.</p>
+          <ZahlungErfassen titel={`Rechnung erstellen (Total ${Number(total).toFixed(2)})`} laeuft={laeuft} mitOffen
+            onBezahlt={(w) => erstellen(w.zahlungsart)} onOffen={() => erstellen(null)} />
+        </>
+      )}
+      {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
+    </section>
   );
 }

@@ -116,13 +116,23 @@ Beherbergungsabgabe; Zwärgli/Spycher für 2 Personen plus weitere Personen und 
 eine Zeile, ohne MWST-Angabe und ohne Fahrzeuge. Nur mit Modul «Artikel & Preise»; ausserhalb
 der Saison bleibt die Zeile leer (mit Hinweis beim Vorbereiten).
 
+**Rechnungen (Modul, einschaltbar):** Entstehen im Aufenthalt bei der Abreise («Rechnung
+erstellen»): je Leistung, Saison und Preis eine Zeile, Zwärgli/Spycher mit inbegriffenen
+Personen, Kurtaxe und Beherbergungsabgabe (ohne MWST), die Anzahlung als eigene Zeile abgezogen.
+Bar oder TWINT gilt sofort als bezahlt, «offen» für eine spätere Überweisung; Kartenzahlung unter
+Einstellungen › Zahlungsarten einschaltbar. Nummer «JJJJ-1000» fortlaufend je Jahr. Solange eine
+gültige Rechnung besteht, ist der Aufenthalt gesperrt; Storno behält die Nummer und gibt den
+Aufenthalt frei. Das PDF wird bei Bedarf aus der gespeicherten Rechnung erzeugt (Absender und
+MWST-Nummer unter Betriebsangaben). Seite «Rechnungen»: offen / bezahlt / storniert, Zahlung
+erfassen, PDF, Storno.
+
 **Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
 Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
 @example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
 `scripts/testdaten_nebensaison.js` erzeugt ab morgen bis Mitte Dezember Nebensaison-Daten mit
 bereits eingecheckten Gästen, Anreisen, Wintercampern und offenen Anfragen.
 
-**Module:** Rechnungen, Auswertungen, HESTA und Feratel sind im
+**Module:** Auswertungen, HESTA und Feratel sind im
 Backend vorhanden, aber standardmässig ausgeschaltet. Unter *Einstellungen* lassen sie sich
 ohne Deployment einschalten; ihre eigene Oberfläche folgt schrittweise (bis dahin Verweis auf
 die API).

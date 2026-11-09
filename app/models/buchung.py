@@ -63,7 +63,12 @@ class Buchung(Base, IDMixin, TimestampMixin):
     stellplatz: Mapped["Stellplatz | None"] = relationship(back_populates="buchungen")
     hauptgast: Mapped["Gast"] = relationship(foreign_keys=[hauptgast_id])
     aufenthalte: Mapped[list["Aufenthalt"]] = relationship(back_populates="buchung")
-    rechnung: Mapped["Rechnung | None"] = relationship(back_populates="buchung", uselist=False)
+    rechnungen: Mapped[list["Rechnung"]] = relationship(back_populates="buchung")
+
+    @property
+    def rechnung(self) -> "Rechnung | None":
+        """Gültige (nicht stornierte) Rechnung; solange es sie gibt, ist der Aufenthalt gesperrt."""
+        return next((r for r in self.rechnungen if r.status != "storniert"), None)
     leistungen: Mapped[list["BuchungLeistung"]] = relationship(
         back_populates="buchung", cascade="all, delete-orphan", order_by="BuchungLeistung.von")
 

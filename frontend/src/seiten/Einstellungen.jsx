@@ -6,6 +6,7 @@ const BEREICHE = [
   { code: "vorlagen", name: "Antwortvorlagen" },
   { code: "betrieb", name: "Betriebsangaben" },
   { code: "belegung", name: "Belegung" },
+  { code: "zahlung", name: "Zahlungsarten" },
   { code: "mwst", name: "MWST-Sätze" },
   { code: "postfach", name: "Postfach" },
   { code: "module", name: "Module" },
@@ -24,6 +25,7 @@ export default function Einstellungen({ module, onGeaendert }) {
       {bereich === "vorlagen" && <Vorlagen />}
       {bereich === "betrieb" && <Betrieb />}
       {bereich === "belegung" && <BelegungGrenzen />}
+      {bereich === "zahlung" && <Zahlungsarten />}
       {bereich === "mwst" && <MwstSaetze />}
       {bereich === "postfach" && <Postfach />}
       {bereich === "module" && <Module module={module} onGeaendert={onGeaendert} />}
@@ -432,5 +434,28 @@ function BelegungGrenzen() {
       {meldung && <p className={`meldung ${meldung.art}`} role="status">{meldung.text}</p>}
       <div className="aktionen"><button className="knopf haupt" type="submit">Speichern</button></div>
     </form>
+  );
+}
+
+function Zahlungsarten() {
+  const [werte, setWerte] = useState(null);
+  const [meldung, setMeldung] = useState(null);
+  useEffect(() => { api.get("/rechnungen/einstellungen").then(setWerte).catch((e) => setMeldung({ art: "fehler", text: e.message })); }, []);
+  const umschalten = async (karte) => {
+    setMeldung(null);
+    const vorher = werte;
+    setWerte({ ...werte, karte });
+    try { setWerte(await api.put("/rechnungen/einstellungen", { karte })); setMeldung({ art: "ok", text: "Gespeichert." }); }
+    catch (err) { setWerte(vorher); setMeldung({ art: "fehler", text: err.message }); }
+  };
+  if (!werte) return meldung ? <p className={`meldung ${meldung.art}`}>{meldung.text}</p> : <p className="leer">Wird geladen …</p>;
+  return (
+    <div className="formular">
+      <p className="hinweis">Bei der Abreise wählbar: Bar, TWINT oder «offen» (der Gast überweist später). Die Kartenzahlung
+        erscheint erst, wenn sie hier eingeschaltet ist. Absender und MWST-Nummer der Rechnung stehen unter «Betriebsangaben».</p>
+      <label className="kontrolle"><input type="checkbox" checked={werte.karte} onChange={(e) => umschalten(e.target.checked)} />
+        Kartenzahlung wird akzeptiert</label>
+      {meldung && <p className={`meldung ${meldung.art}`} role="status">{meldung.text}</p>}
+    </div>
   );
 }

@@ -51,6 +51,8 @@ BETRIEBSFELDER: tuple[Feld, ...] = (
     Feld("bic", "BIC", ""),
     Feld("kontoinhaber", "Kontoinhaber", "Optional, erscheint unter IBAN/BIC."),
     Feld("twint", "TWINT-Nummer", "Leer lassen, solange TWINT nicht angeboten wird. Sobald ausgefüllt, erscheint TWINT in der Antwort."),
+    Feld("rechnung_absender", "Absender auf der Rechnung", "Name und Adresse des Betriebs, oben links auf jeder Rechnung.", True),
+    Feld("mwst_nummer", "MWST-Nummer", "Erscheint auf der Rechnung, z.B. CHE-123.456.789 MWST."),
 )
 BETRIEBSSCHLUESSEL = {f.schluessel for f in BETRIEBSFELDER}
 
