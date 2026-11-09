@@ -32,6 +32,7 @@ from app.schemas.reservation import (
     StatusAenderung,
 )
 from app.services import antwortmail as am
+from app.services import richtpreis
 from app.services import belegung as bel
 from app.services.anfrage_pruefung import wende_pruefung_an
 from app.services.mail_import import (
@@ -366,12 +367,13 @@ def antwort_vorbereiten(anfrage_id: uuid.UUID, daten: AntwortVorbereiten, db: Se
         select(EmailVorlage).where(EmailVorlage.typ == daten.typ, EmailVorlage.sprache == daten.sprache)
     ).scalar_one()
     betrieb = am.betriebsangaben(db)
+    preis, preis_warnung = richtpreis.fuer_vorlage(db, anfrage, daten.sprache, vorlage.betreff + vorlage.koerper)
     werte = am.werte_fuer(anfrage, daten.sprache, daten.betrag if mit_anzahlung else None,
-                          daten.zahlungsfrist, betrieb, am.letzter_gast_betreff(db, anfrage), erhalten)
+                          daten.zahlungsfrist, betrieb, am.letzter_gast_betreff(db, anfrage), erhalten, preis)
     betreff, u1 = am.ersetze(vorlage.betreff, werte)
     betreff = am.betreff_mit_nummer(betreff, anfrage.nummer, daten.sprache)
     text, u2 = am.ersetze(vorlage.koerper, werte)
-    warnungen = am.warnungen_betrieb(betrieb, daten.typ)
+    warnungen = am.warnungen_betrieb(betrieb, daten.typ) + ([preis_warnung] if preis_warnung else [])
     if u1 or u2:
         warnungen.append("Unbekannte Platzhalter in der Vorlage: " + ", ".join(sorted(set(u1 + u2))))
     position = None

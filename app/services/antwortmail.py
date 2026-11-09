@@ -191,6 +191,8 @@ Abreise: {{abreise}} ({{naechte}} Nächte)
 Stellplatz: {{stellplatzTyp}}
 Personen: {{personen}}
 
+{{preisProNacht}}
+
 Wir freuen uns auf Ihren Besuch.
 
 Freundliche Grüsse
@@ -208,6 +210,8 @@ Arrivée : {{anreise}}
 Départ : {{abreise}} ({{naechte}} nuits)
 Emplacement : {{stellplatzTyp}}
 Personnes : {{personen}}
+
+{{preisProNacht}}
 
 Nous nous réjouissons de votre visite.
 
@@ -227,6 +231,8 @@ Partenza: {{abreise}} ({{naechte}} notti)
 Piazzola: {{stellplatzTyp}}
 Persone: {{personen}}
 
+{{preisProNacht}}
+
 Ci rallegriamo della sua visita.
 
 Cordiali saluti
@@ -245,6 +251,8 @@ Departure: {{abreise}} ({{naechte}} nights)
 Pitch: {{stellplatzTyp}}
 Guests: {{personen}}
 
+{{preisProNacht}}
+
 We look forward to welcoming you.
 
 Kind regards
@@ -256,9 +264,19 @@ _STARTVORLAGEN_JE_TYP = {TYP_ERSTANTWORT: STARTVORLAGEN, TYP_FREI: STARTVORLAGEN
 
 
 def startvorlagen_ergaenzen(db: Session) -> int:
-    """Legt fehlende Vorlagen an (idempotent). Gibt die Anzahl neuer Vorlagen zurück."""
-    vorhanden = {(v.typ, v.sprache) for v in db.execute(select(EmailVorlage)).scalars()}
+    """
+    Legt fehlende Vorlagen an (idempotent). Gibt die Anzahl neuer Vorlagen zurück.
+    Unveränderte Bestätigungs-Vorlagen der früheren Fassung erhalten den
+    Platzhalter {{preisProNacht}}; angepasste Vorlagen bleiben, wie sie sind.
+    """
+    vorlagen = list(db.execute(select(EmailVorlage)).scalars())
+    vorhanden = {(v.typ, v.sprache) for v in vorlagen}
     neu = 0
+    for v in vorlagen:
+        start = STARTVORLAGEN_BESTAETIGUNG.get(v.sprache)
+        if v.typ == TYP_BESTAETIGUNG and start and v.koerper == start[1].replace("\n\n{{preisProNacht}}", ""):
+            v.koerper = start[1]
+            neu += 1
     for typ, vorlagen in _STARTVORLAGEN_JE_TYP.items():
         for sprache, (betreff, koerper) in vorlagen.items():
             if (typ, sprache) not in vorhanden:
@@ -287,6 +305,7 @@ PLATZHALTER = {
     "anfrageNummer": "Nummer der Anfrage, z.B. 2026-042 (steht automatisch auch im Betreff)",
     "anzahlungErhalten": "Gutgeschriebene Anzahlung beim Akzeptieren, z.B. CHF 85.40 (sonst leer)",
     "zahlungsbestaetigung": "Satz «Vielen Dank für Ihre Anzahlung von …», leer wenn ohne Anzahlung akzeptiert",
+    "preisProNacht": "Unverbindlicher Preis pro Nacht mit Aufstellung (Personen, Stellplatz, Umweltabgabe, Taxen; je Saison) – nur mit Modul «Artikel & Preise»",
     "signatur": "Signatur aus den Betriebsangaben",
     "infoblock": "Infoblock aus den Betriebsangaben",
 }
@@ -434,7 +453,7 @@ def antwort_betreff(letzter_betreff: str | None, sprache: str) -> str:
 
 def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal | None, frist: date | None,
                betrieb: dict[str, str], letzter_betreff: str | None = None,
-               erhalten: Decimal | None = None) -> dict[str, str]:
+               erhalten: Decimal | None = None, preis_pro_nacht: str = "") -> dict[str, str]:
     naechte = (anfrage.gewuenscht_bis - anfrage.gewuenscht_von).days if anfrage.gewuenscht_von and anfrage.gewuenscht_bis else ""
     return {
         "gastName": anfrage.gast_name,
@@ -453,6 +472,7 @@ def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal | Non
         "anzahlungErhalten": betrag_text(erhalten) if erhalten else "",
         "zahlungsbestaetigung": (_DANK_ANZAHLUNG.get(sprache, _DANK_ANZAHLUNG["de"]).format(betrag=betrag_text(erhalten))
                                  if erhalten else ""),
+        "preisProNacht": preis_pro_nacht,
         "signatur": betrieb.get("signatur", ""),
         "infoblock": betrieb.get("infoblock", ""),
     }
