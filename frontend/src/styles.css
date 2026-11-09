@@ -563,6 +563,7 @@ table.leistungen thead th { font-size: 0.8125rem; color: var(--tinte-leise); fon
 table.leistungen tr.gruppe th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--tinte-leise); padding-top: 10px; }
 table.leistungen .zahl { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 table.leistungen td.teilzeit { color: var(--see-dunkel); font-weight: 600; }
+table.leistungen td:nth-child(3) { white-space: nowrap; }
 table.leistungen tr.aktiv td { background: var(--see-zart); }
 table.leistungen tr.formzeile td { padding: 0 0 10px; }
 .zeilen-aktionen { white-space: nowrap; text-align: right; }
@@ -587,4 +588,37 @@ button.link.gefahr { color: var(--ziegel); font-weight: 600; }
   table.leistungen td, table.leistungen th { white-space: nowrap; }
   .taxen .tax-zeile { display: grid; gap: 0; }
   .taxen .tax-zeile dd { text-align: left; }
+}
+
+/* ---------- Artikel & Preise ---------- */
+.preise-seite { padding-bottom: 96px; }
+.preise-karte { background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); box-shadow: var(--schatten);
+  padding: 18px 20px; display: grid; gap: 10px; margin-top: 18px; }
+.preise-karte h2 { margin: 0; font-family: var(--titel); font-size: 1.25rem; }
+.saison-raster { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.saison-raster fieldset { border: 1px solid var(--linie); border-radius: var(--radius-klein); padding: 10px 12px; display: grid; gap: 8px; margin: 0; }
+.saison-raster fieldset.geaendert, input.preisfeld.geaendert { border-color: var(--harz); background: var(--harz-zart); }
+.saison-raster legend { font-weight: 600; padding: 0 4px; }
+table.preistabelle { width: 100%; border-collapse: collapse; }
+table.preistabelle th, table.preistabelle td { padding: 6px 8px; border-bottom: 1px solid var(--nebel); text-align: left; }
+table.preistabelle thead th { font-size: 0.8125rem; color: var(--tinte-leise); border-bottom-color: var(--linie); }
+table.preistabelle tbody th { font-weight: 600; }
+table.preistabelle .zahl { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+input.preisfeld { width: 7em; text-align: right; font-variant-numeric: tabular-nums; }
+.speicherleiste { position: fixed; bottom: 0; right: 0; left: var(--menue-breite, 232px); display: flex; gap: 12px; align-items: center;
+  justify-content: flex-end; padding: 12px 24px; background: var(--papier); border-top: 1px solid var(--linie); z-index: 10; color: var(--tinte-leise); }
+.speicherleiste.aktiv { box-shadow: 0 -4px 16px rgba(20, 48, 64, 0.1); color: var(--harz); font-weight: 600; }
+.speicherleiste > span { margin-right: auto; }
+table.leistungen td.betrag { text-align: right; }
+.block { display: block; }
+.warn-text { color: var(--harz); }
+table.leistungen tr.abzug td { color: var(--moos); font-style: italic; }
+.total-box { border: 1px solid var(--linie); border-radius: var(--radius-klein); padding: 10px 12px; display: grid; gap: 8px; }
+.total-box dl { margin: 0; display: grid; gap: 4px; }
+.total-box dl > div { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+.total-box dl dd { margin: 0; }
+.total-box .summe { border-top: 1px solid var(--linie); padding-top: 6px; font-weight: 700; font-size: 1.0625rem; }
+@media (max-width: 900px) {
+  .saison-raster { grid-template-columns: 1fr; }
+  .speicherleiste { left: 0; padding: 10px 16px; }
 }
