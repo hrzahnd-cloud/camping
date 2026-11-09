@@ -22,8 +22,9 @@ from app.models.artikel import Artikel, ArtikelPreis, Saison
 from app.models.buchung import Buchung
 from app.models.rechnung import Rechnung, Rechnungsposition
 from app.schemas.rechnung import RechnungOut, RechnungspositionCreate
-from app.services.mwst import mwst_betrag_aus_brutto, prozent_fuer_artikel
+from app.services.mwst import zahl_text, mwst_betrag_aus_brutto, prozent_fuer_artikel
 from app.services import antwortmail as am
+from app.services import logo
 from app.services import rechnung_aufenthalt as ra
 from app.services.pdf_rechnung import RechnungsDaten, RechnungsPositionZeile, rechnung_pdf
 from app.services.rechnungsnummer import naechste_rechnungsnummer
@@ -242,9 +243,9 @@ def _zeile(db: Session, r: Rechnung) -> RechnungsZeile:
 def _detail(db: Session, r: Rechnung) -> RechnungDetail:
     return RechnungDetail(
         **_zeile(db, r).model_dump(), mwst_betrag_total=_geld(r.mwst_betrag_total), storniert_am=r.storniert_am,
-        positionen=[PositionText(bezeichnung=p.bezeichnung or p.artikel.bezeichnung, menge=str(Decimal(str(p.menge)).normalize()),
+        positionen=[PositionText(bezeichnung=p.bezeichnung or p.artikel.bezeichnung, menge=zahl_text(p.menge),
                                  einzelpreis=_geld(p.einzelpreis), betrag=_geld(p.betrag),
-                                 mwstsatz_prozent=str(Decimal(str(p.mwstsatz_prozent)).normalize()))
+                                 mwstsatz_prozent=zahl_text(p.mwstsatz_prozent))
                     for p in r.positionen])
 
 
@@ -342,7 +343,7 @@ def _pdf_daten(db: Session, r: Rechnung) -> RechnungsDaten:
                                            einzelpreis=Decimal(str(p.einzelpreis)), betrag=Decimal(str(p.betrag)),
                                            mwstsatz_prozent=Decimal(str(p.mwstsatz_prozent))) for p in r.positionen],
         gesamtbetrag=Decimal(str(r.gesamtbetrag)), anzahlung=Decimal(str(r.anzahlung or 0)),
-        zahlungsvermerk=vermerk, storniert=r.status == "storniert")
+        zahlungsvermerk=vermerk, storniert=r.status == "storniert", logo=(logo.lesen(db) or (None,))[0])
 
 
 @router.get("/{rechnung_id}/pdf")

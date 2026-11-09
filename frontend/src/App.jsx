@@ -12,6 +12,7 @@ import Modulseite from "./seiten/Modulseite.jsx";
 import Aufenthalte from "./seiten/Aufenthalte.jsx";
 import ArtikelPreise from "./seiten/ArtikelPreise.jsx";
 import Rechnungen from "./seiten/Rechnungen.jsx";
+import Auswertungen from "./seiten/Auswertungen.jsx";
 
 // Reihenfolge = Reihenfolge im Menü. Module, die unter Einstellungen
 // ausgeschaltet sind, erscheinen nicht.
@@ -23,7 +24,7 @@ const SEITEN = [
   { code: "buchungen", pfad: "aufenthalte", name: "Aufenthalte", icon: BedDouble, Komponente: Aufenthalte },
   { code: "artikel", pfad: "artikel", name: "Artikel & Preise", icon: Package, Komponente: ArtikelPreise },
   { code: "rechnungen", pfad: "rechnungen", name: "Rechnungen", icon: FileText, Komponente: Rechnungen },
-  { code: "auswertungen", pfad: "auswertungen", name: "Auswertungen", icon: BarChart3 },
+  { code: "auswertungen", pfad: "auswertungen", name: "Auswertungen", icon: BarChart3, Komponente: Auswertungen },
   { code: "hesta", pfad: "hesta", name: "HESTA", icon: Send },
   { code: "feratel", pfad: "feratel", name: "Feratel", icon: Map },
 ];

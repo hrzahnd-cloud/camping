@@ -30,7 +30,7 @@ from app.models.rechnung import Rechnung, Rechnungsposition
 from app.models.reservation import Zahlung
 from app.services import leistungen as lst
 from app.services import preise as pr
-from app.services.mwst import mwst_betrag_aus_brutto
+from app.services.mwst import mwst_betrag_aus_brutto, mwst_je_satz
 from app.services.rechnungsnummer import naechste_rechnungsnummer
 
 ZAHLUNGSARTEN = {"bar": "Bar", "twint": "TWINT", "karte": "Karte", "ueberweisung": "Überweisung"}
@@ -136,7 +136,8 @@ def erstellen(db: Session, b: Buchung, zahlungsart: str | None, heute: date | No
 
     db.add_all(positionen)
     rechnung.gesamtbetrag = sum((p.betrag for p in positionen), Decimal("0.00"))
-    rechnung.mwst_betrag_total = sum((p.mwst_betrag for p in positionen), Decimal("0.00"))
+    rechnung.mwst_betrag_total = sum((m for _, m in mwst_je_satz((p.betrag, p.mwstsatz_prozent) for p in positionen).values()),
+                                     Decimal("0.00"))
     rechnung.anzahlung = min(anzahlung_der_buchung(db, b), rechnung.gesamtbetrag) if rechnung.gesamtbetrag > 0 else Decimal("0.00")
     if zahlungsart or rechnung.restbetrag <= 0:
         bezahlen(db, rechnung, zahlungsart, heute, commit=False)

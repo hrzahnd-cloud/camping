@@ -126,13 +126,23 @@ Aufenthalt frei. Das PDF wird bei Bedarf aus der gespeicherten Rechnung erzeugt 
 MWST-Nummer unter Betriebsangaben). Seite «Rechnungen»: offen / bezahlt / storniert, Zahlung
 erfassen, PDF, Storno.
 
+**Auswertungen (Modul, einschaltbar):** Jahr wählen, Vergleich mit einem Vorjahr (Daten aus dem Tool).
+*Einnahmen & MWST* pro Monat nach Zahlungseingang (vereinnahmtes Entgelt): Anzahlungen und
+Schlusszahlungen, je Zahlung im Verhältnis des Rechnungstotals aufgeteilt in MWST-pflichtigen
+Umsatz je Satz und durchlaufende Taxen; Anzahlungen ohne Rechnung vorläufig als Beherbergung.
+*Übernachtungen & Taxen* pro Monat nach Nacht (Kontrolle zu Feratel): Ankünfte, Personennächte
+Erwachsene/Kinder/Kleinkinder, Kurtaxe nur Pflichtige, Beherbergungsabgabe, Nächte je Stellplatz.
+*Saison (Buchhaltung)*: Rechnungen des Jahres, MWST auf den Rechnungstotalen, Taxen, Umsatz je
+Leistung, Einnahmen je Zahlungsart, Offenes – als Excel und PDF. Rechnungen mit Logo (Upload unter
+Betriebsangaben, gespeichert in der Datenbank); MWST je Satz einmal auf dem Total.
+
 **Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
 Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
 @example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
 `scripts/testdaten_nebensaison.js` erzeugt ab morgen bis Mitte Dezember Nebensaison-Daten mit
 bereits eingecheckten Gästen, Anreisen, Wintercampern und offenen Anfragen.
 
-**Module:** Auswertungen, HESTA und Feratel sind im
+**Module:** HESTA und Feratel sind im
 Backend vorhanden, aber standardmässig ausgeschaltet. Unter *Einstellungen* lassen sie sich
 ohne Deployment einschalten; ihre eigene Oberfläche folgt schrittweise (bis dahin Verweis auf
 die API).

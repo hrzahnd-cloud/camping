@@ -182,7 +182,8 @@ function Betrieb() {
   if (!felder) return meldung ? <p className="meldung fehler">{meldung.text}</p> : <p className="leer">Wird geladen …</p>;
   return (
     <form className="formular" onSubmit={speichern}>
-      <p className="hinweis">Diese Angaben erscheinen in jeder Antwortmail.</p>
+      <p className="hinweis">Diese Angaben erscheinen in jeder Antwortmail; Absender, MWST-Nummer und Logo auf der Rechnung.</p>
+      <LogoUpload />
       {felder.map((f) => {
         const id = `betrieb-${f.schluessel}`;
         const props = {
@@ -455,6 +456,44 @@ function Zahlungsarten() {
         erscheint erst, wenn sie hier eingeschaltet ist. Absender und MWST-Nummer der Rechnung stehen unter «Betriebsangaben».</p>
       <label className="kontrolle"><input type="checkbox" checked={werte.karte} onChange={(e) => umschalten(e.target.checked)} />
         Kartenzahlung wird akzeptiert</label>
+      {meldung && <p className={`meldung ${meldung.art}`} role="status">{meldung.text}</p>}
+    </div>
+  );
+}
+
+function LogoUpload() {
+  const [stand, setStand] = useState(Date.now());
+  const [vorhanden, setVorhanden] = useState(null);
+  const [meldung, setMeldung] = useState(null);
+  useEffect(() => {
+    fetch(`/einstellungen/logo?t=${stand}`).then((r) => setVorhanden(r.ok)).catch(() => setVorhanden(false));
+  }, [stand]);
+  const hochladen = (e) => {
+    const datei = e.target.files?.[0];
+    e.target.value = "";
+    if (!datei) return;
+    if (datei.size > 2_000_000) { setMeldung({ art: "fehler", text: "Das Bild ist grösser als 2 MB." }); return; }
+    const leser = new FileReader();
+    leser.onload = async () => {
+      setMeldung(null);
+      try { await api.put("/einstellungen/logo", { bild: leser.result }); setStand(Date.now()); setMeldung({ art: "ok", text: "Logo gespeichert." }); }
+      catch (err) { setMeldung({ art: "fehler", text: err.message }); }
+    };
+    leser.readAsDataURL(datei);
+  };
+  const entfernen = async () => {
+    try { await api.delete("/einstellungen/logo"); setStand(Date.now()); setMeldung({ art: "ok", text: "Logo entfernt." }); }
+    catch (err) { setMeldung({ art: "fehler", text: err.message }); }
+  };
+  return (
+    <div className="feld logo-feld">
+      <span className="label">Logo auf der Rechnung</span>
+      <div className="logo-zeile">
+        {vorhanden ? <img src={`/einstellungen/logo?t=${stand}`} alt="Logo des Betriebs" /> : <span className="leer klein">Kein Logo hinterlegt.</span>}
+        <label className="knopf neben">Bild wählen …<input type="file" accept="image/png,image/jpeg" className="sr-only" onChange={hochladen} /></label>
+        {vorhanden && <button type="button" className="knopf leise" onClick={entfernen}>Entfernen</button>}
+      </div>
+      <span className="feldhinweis">PNG oder JPG, höchstens 2 MB. Erscheint oben rechts auf jeder Rechnung.</span>
       {meldung && <p className={`meldung ${meldung.art}`} role="status">{meldung.text}</p>}
     </div>
   );

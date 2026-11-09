@@ -4,7 +4,8 @@ gespeicherten Daten der Rechnung – nichts wird auf der Festplatte abgelegt.
 
 Pflichtangaben für Schweizer Rechnungen: Absender mit MWST-Nummer, Empfänger,
 Rechnungsnummer und -datum, Leistungszeitraum, Positionen mit MWST-Satz,
-Aufschlüsselung der MWST je Satz. Taxen (Kurtaxe, Beherbergungsabgabe) sind
+Aufschlüsselung der MWST je Satz – berechnet auf dem Rechnungstotal, die
+Anzahlung ändert daran nichts (sie ist im Total enthalten). Taxen (Kurtaxe, Beherbergungsabgabe) sind
 durchlaufende Posten ohne MWST.
 
 Reines Layout: die Daten übergibt der Aufrufer (testbar ohne Datenbank).
@@ -15,7 +16,10 @@ from io import BytesIO
 
 from reportlab.lib.colors import HexColor, black
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
+
+from app.services.mwst import mwst_je_satz
 
 TIEFSEE = HexColor("#143040")
 LEISE = HexColor("#56646b")
@@ -48,6 +52,8 @@ class RechnungsDaten:
     zahlungsvermerk: str = ""
     """z.B. «Bezahlt am 11.11.2026, TWINT. Vielen Dank!» oder Zahlungsangaben bei offener Rechnung."""
     storniert: bool = False
+    logo: bytes | None = None
+    """Logo des Betriebs (PNG/JPG), oben rechts."""
 
 
 def _chf(x: Decimal) -> str:
@@ -82,14 +88,22 @@ def rechnung_pdf(daten: RechnungsDaten) -> bytes:
         return y
 
     y = kopf()
-    # Empfänger (Fensterposition rechts)
-    ye = hoehe - 150
+    if daten.logo:
+        try:
+            bild = ImageReader(BytesIO(daten.logo))
+            b, h = bild.getSize()
+            faktor = min(150 / b, 95 / h)
+            c.drawImage(bild, rechts - b * faktor, hoehe - 40 - h * faktor, b * faktor, h * faktor, mask="auto")
+        except Exception:  # defektes Bild: Rechnung trotzdem erstellen
+            pass
+    # Empfänger (Fensterposition rechts, passend für Fenstercouvert)
+    ye = hoehe - 175
     c.setFillColor(black)
     c.setFont("Helvetica", 10)
     for zeile in daten.kunde_zeilen:
         c.drawString(breite / 2 + 20, ye, zeile)
         ye -= 13
-    y = min(y, ye) - 30
+    y = min(y, ye, hoehe - 255) - 30
 
     c.setFont("Helvetica-Bold", 16)
     c.setFillColor(TIEFSEE)
@@ -142,18 +156,14 @@ def rechnung_pdf(daten: RechnungsDaten) -> bytes:
     y -= 14
     c.setFont("Helvetica", 8.5)
     c.setFillColor(LEISE)
-    saetze: dict[Decimal, list[Decimal]] = {}
-    for pos in daten.positionen:
-        if pos.mwstsatz_prozent > 0:
-            mwst = pos.betrag - pos.betrag / (1 + pos.mwstsatz_prozent / 100)
-            eintrag = saetze.setdefault(pos.mwstsatz_prozent, [Decimal("0"), Decimal("0")])
-            eintrag[0] += pos.betrag
-            eintrag[1] += mwst
-    for satz, (basis, mwst) in sorted(saetze.items()):
-        c.drawRightString(rechts - 6, y, f"inkl. MWST {satz:.1f}% auf {basis:.2f}: CHF {mwst:.2f}")
+    for satz, (basis, mwst) in mwst_je_satz((p.betrag, p.mwstsatz_prozent) for p in daten.positionen).items():
+        c.drawRightString(rechts - 6, y, f"Im Total enthalten: MWST {satz:.1f}% auf CHF {basis:.2f} = CHF {mwst:.2f}")
         y -= 11
     if any(p.mwstsatz_prozent == 0 for p in daten.positionen):
         c.drawRightString(rechts - 6, y, "Kurtaxe und Beherbergungsabgabe ohne MWST")
+        y -= 11
+    if daten.anzahlung:
+        c.drawRightString(rechts - 6, y, "MWST auf dem Total; die Anzahlung ist darin enthalten")
         y -= 11
     c.setFillColor(black)
     if daten.anzahlung:

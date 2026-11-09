@@ -117,3 +117,33 @@ def betrieb_speichern(werte: dict[str, str], db: Session = Depends(get_db)):
         raise HTTPException(400, "Unbekannte Felder: " + ", ".join(sorted(unbekannt)))
     am.betriebsangaben_setzen(db, werte)
     return betrieb_lesen(db)
+
+
+class LogoDaten(BaseModel):
+    bild: str
+    """Data-URL (data:image/png;base64,…), wie sie der Browser beim Hochladen liefert."""
+
+
+@router.get("/einstellungen/logo")
+def logo_lesen(db: Session = Depends(get_db)):
+    from fastapi import Response
+    from app.services import logo
+    gespeichert = logo.lesen(db)
+    if gespeichert is None:
+        raise HTTPException(404, "Kein Logo hinterlegt")
+    return Response(gespeichert[0], media_type=gespeichert[1], headers={"Cache-Control": "no-store"})
+
+
+@router.put("/einstellungen/logo", status_code=204)
+def logo_speichern(daten: LogoDaten, db: Session = Depends(get_db)):
+    from app.services import logo
+    try:
+        logo.speichern(db, daten.bild)
+    except logo.LogoFehler as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.delete("/einstellungen/logo", status_code=204)
+def logo_entfernen(db: Session = Depends(get_db)):
+    from app.services import logo
+    logo.loeschen(db)

@@ -106,3 +106,55 @@ def zahlungsmethoden_ueber_zeitraum(
         {"zahlungsart": r.zahlungsart, "summe": float(r.summe), "anzahl": r.anzahl}
         for r in zeilen
     ]
+
+
+# --- Modul «Auswertungen»: Einnahmen/MWST, Übernachtungen/Taxen, Saison -------------
+
+def _betrieb(db: Session) -> str:
+    from app.services import antwortmail as am
+    return next((z.strip() for z in am.betriebsangaben(db).get("rechnung_absender", "").split("\n") if z.strip()), "")
+
+
+@router.get("/jahre")
+def auswertungs_jahre(db: Session = Depends(get_db)) -> list[int]:
+    from app.services import auswertung as aw
+    return aw.jahre(db)
+
+
+@router.get("/einnahmen")
+def einnahmen_pro_monat(jahr: int, vergleich: int | None = None, db: Session = Depends(get_db)):
+    """Einnahmen und MWST pro Monat nach Zahlungseingang (vereinnahmtes Entgelt), optional mit Vergleichsjahr."""
+    from app.services import auswertung as aw
+    return {"aktuell": aw.einnahmen(db, jahr), "vergleich": aw.einnahmen(db, vergleich) if vergleich else None}
+
+
+@router.get("/uebernachtungen")
+def uebernachtungen_pro_monat(jahr: int, vergleich: int | None = None, db: Session = Depends(get_db)):
+    """Personennächte, Taxen und Stellplatz-Nächte pro Monat (nach Nacht), optional mit Vergleichsjahr."""
+    from app.services import auswertung as aw
+    return {"aktuell": aw.uebernachtungen(db, jahr), "vergleich": aw.uebernachtungen(db, vergleich) if vergleich else None}
+
+
+@router.get("/saison")
+def saison_zusammenstellung(jahr: int, db: Session = Depends(get_db)):
+    from app.services import auswertung as aw
+    return aw.saison(db, jahr)
+
+
+@router.get("/saison/{jahr}.xlsx")
+def saison_excel(jahr: int, db: Session = Depends(get_db)):
+    from fastapi import Response
+    from app.services import auswertung as aw
+    from app.services import auswertung_export as ex
+    daten = ex.excel(aw.saison(db, jahr), aw.einnahmen(db, jahr), aw.uebernachtungen(db, jahr), _betrieb(db))
+    return Response(daten, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="Saison-{jahr}.xlsx"'})
+
+
+@router.get("/saison/{jahr}.pdf")
+def saison_pdf(jahr: int, db: Session = Depends(get_db)):
+    from fastapi import Response
+    from app.services import auswertung as aw
+    from app.services import auswertung_export as ex
+    daten = ex.pdf(aw.saison(db, jahr), aw.einnahmen(db, jahr), aw.uebernachtungen(db, jahr), _betrieb(db))
+    return Response(daten, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="Saison-{jahr}.pdf"'})
