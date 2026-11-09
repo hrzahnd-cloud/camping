@@ -11,12 +11,12 @@ const TAG_LANG = new Intl.DateTimeFormat("de-CH", { weekday: "long", day: "numer
 const MONAT = new Intl.DateTimeFormat("de-CH", { month: "long", year: "numeric" });
 const STELLPLAETZE = ["zeltwiese", "wohnwagen", "camper"];
 // häufige Herkunftsländer zuerst; weitere über «Anderes Land» als ISO-Code (HESTA)
-const LAENDER = { CH: "Schweiz", DE: "Deutschland", NL: "Niederlande", FR: "Frankreich", IT: "Italien", BE: "Belgien",
+export const LAENDER = { CH: "Schweiz", DE: "Deutschland", NL: "Niederlande", FR: "Frankreich", IT: "Italien", BE: "Belgien",
   AT: "Österreich", GB: "Grossbritannien", LU: "Luxemburg", DK: "Dänemark", SE: "Schweden", NO: "Norwegen", FI: "Finnland",
   ES: "Spanien", PT: "Portugal", PL: "Polen", CZ: "Tschechien", SK: "Slowakei", HU: "Ungarn", SI: "Slowenien", HR: "Kroatien",
   IE: "Irland", LI: "Liechtenstein", US: "USA", CA: "Kanada", AU: "Australien", NZ: "Neuseeland", IL: "Israel",
   CN: "China", JP: "Japan", KR: "Südkorea", IN: "Indien" };
-const ANDERES = "__anderes";
+export const ANDERES = "__anderes";
 
 function bereich(ansicht, bezug, frei) {
   if (ansicht === "monat") {
@@ -47,7 +47,8 @@ const hashParameter = () => new URLSearchParams(window.location.hash.split("?")[
 const istAufenthalt = (e) => e.art === "aufenthalt";
 const eintragStatus = (e) => (istAufenthalt(e) ? (e.status === "eingecheckt" ? "Eingecheckt" : "Abgereist") : statusName(e.status));
 
-export default function Belegung() {
+export default function Belegung({ module = [] }) {
+  const aufenthalteAktiv = module.some((m) => m.code === "buchungen" && m.aktiv);
   const heute = heuteIso();
   const start = hashParameter();
   const [ansicht, setAnsicht] = useState("monat");
@@ -169,7 +170,7 @@ export default function Belegung() {
               onEintrag={(e) => setSchublade({ art: "eintrag", id: e.id, zurueck: schublade.datum })} />
           )}
           {schublade.art === "eintrag" && (
-            <EintragPanel id={schublade.id} heute={heute} zurueck={schublade.zurueck}
+            <EintragPanel id={schublade.id} heute={heute} zurueck={schublade.zurueck} aufenthalteAktiv={aufenthalteAktiv}
               onZurueck={(datum) => setSchublade({ art: "tag", datum })}
               onCheckin={(e) => setSchublade({ art: "checkin", eintrag: e, zurueck: schublade.zurueck })}
               onGeaendert={nachAenderung} onGeloescht={() => { nachAenderung(); setSchublade(schublade.zurueck ? { art: "tag", datum: schublade.zurueck } : null); }} />
@@ -185,11 +186,11 @@ export default function Belegung() {
   );
 }
 
-function Schublade({ children, onSchliessen }) {
+export function Schublade({ children, onSchliessen, breit = false, titel = "Details zur Belegung" }) {
   return (
     <>
       <div className="schublade-hintergrund" onClick={onSchliessen} aria-hidden="true" />
-      <aside className="schublade" role="dialog" aria-modal="false" aria-label="Details zur Belegung">
+      <aside className={`schublade${breit ? " breit" : ""}`} role="dialog" aria-modal="false" aria-label={titel}>
         <button className="knopf symbol schliessen" onClick={onSchliessen} aria-label="Schliessen"><X size={18} /></button>
         {children}
       </aside>
@@ -463,7 +464,7 @@ function PanelListe({ titel, leer, eintraege, onEintrag, aktion, einklappbar }) 
   return <section className="panel-abschnitt"><h3>{titel} ({eintraege.length})</h3>{inhalt}</section>;
 }
 
-function EintragPanel({ id, heute, zurueck, onZurueck, onCheckin, onGeaendert, onGeloescht }) {
+function EintragPanel({ id, heute, zurueck, aufenthalteAktiv, onZurueck, onCheckin, onGeaendert, onGeloescht }) {
   const [eintrag, setEintrag] = useState(null);
   const [fehler, setFehler] = useState(null);
   const [laeuft, setLaeuft] = useState(false);
@@ -511,6 +512,11 @@ function EintragPanel({ id, heute, zurueck, onZurueck, onCheckin, onGeaendert, o
           {e.anfrage?.anzahlung_erhalten && <><dt>Anzahlung</dt><dd>CHF {Number(e.anfrage.anzahlung_erhalten).toFixed(2)} erhalten</dd></>}
           {e.bemerkung && <><dt>Bemerkung</dt><dd className="mehrzeilig">{e.bemerkung}</dd></>}
         </dl>
+        {aufenthalteAktiv && (
+          <div className="aktionen">
+            <a className="knopf neben" href={`#/aufenthalte?id=${e.buchung_id}`}>Leistungen und Details im Aufenthalt</a>
+          </div>
+        )}
         {fehler && <p className="meldung fehler" role="alert">{fehler}</p>}
         {e.status === "eingecheckt" && (
           <div className="aktionen">
@@ -580,7 +586,7 @@ export function HoheBelegung({ liste }) {
   );
 }
 
-function Bestaetigung({ offen, onOeffnen, onAbbrechen, knopf, frage, laeuft, onJa }) {
+export function Bestaetigung({ offen, onOeffnen, onAbbrechen, knopf, frage, laeuft, onJa }) {
   if (!offen) return <div className="aktionen"><button className="knopf leise" onClick={onOeffnen}>{knopf}</button></div>;
   return (
     <div className="bestaetigung" role="group" aria-label={knopf}>
@@ -593,7 +599,7 @@ function Bestaetigung({ offen, onOeffnen, onAbbrechen, knopf, frage, laeuft, onJ
   );
 }
 
-function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
+export function CheckIn({ eintrag, heute, onAbbrechen, onEingecheckt }) {
   const teile = (eintrag?.gast_name || "").trim().split(/\s+/);
   const [werte, setWerte] = useState({
     vorname: teile.length > 1 ? teile.slice(0, -1).join(" ") : teile[0] || "",

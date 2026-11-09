@@ -9,7 +9,7 @@ from app.database import Base  # noqa: F401
 
 from app.models.campingplatz import Campingplatz, Stellplatz  # noqa: F401
 from app.models.artikel import Mwstsatz, Saison, Artikel, ArtikelPreis, Taxensatz  # noqa: F401
-from app.models.buchung import Gast, Buchung, Aufenthalt  # noqa: F401
+from app.models.buchung import Gast, Buchung, Aufenthalt, BuchungLeistung  # noqa: F401
 from app.models.reservation import (  # noqa: F401
     Reservationsanfrage,
     Zahlung,

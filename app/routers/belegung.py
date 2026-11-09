@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.reservation import Reservationsanfrage
 from app.services import belegung as bel
+from app.services.leistungen import personen_je_nacht
 
 router = APIRouter(prefix="/belegung", tags=["Belegung"])
 
@@ -117,12 +118,15 @@ def belegung(
     anzahl = {t: 0 for t in TYPEN}
     eintraege = []
 
-    def zaehlen(typ, start, ende, e, k):
+    def zaehlen(typ, start, ende, e, k, je_nacht=None):
         if typ not in summen:
             return
         anzahl[typ] += 1
         for d in tage:
             if start <= d < ende:
+                if je_nacht is not None:  # Aufenthalt: Personen je Nacht aus den Leistungen
+                    pe, pk, pkk = je_nacht.get(d, (0, 0, 0))
+                    e, k = pe, pk + pkk
                 zeile = summen[typ][d]
                 zeile[0] += 1
                 zeile[1] += e
@@ -148,7 +152,7 @@ def belegung(
             stellplatz_typ=b.stellplatz_typ, von=b.von, bis=b.bis, naechte=(b.bis - b.von).days,
             erwachsene=b.anzahl_erwachsene or 0, kinder=kinder_b, status=b.status, akzeptiert=True,
         ))
-        zaehlen(b.stellplatz_typ, b.von, b.bis, b.anzahl_erwachsene or 0, kinder_b)
+        zaehlen(b.stellplatz_typ, b.von, b.bis, b.anzahl_erwachsene or 0, kinder_b, personen_je_nacht(b))
     eintraege.sort(key=lambda x: (x.von, x.gast_name))
 
     werte = bel.einstellungen(db)

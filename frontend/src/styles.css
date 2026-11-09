@@ -524,3 +524,67 @@ button.zb-tag { border: 0; border-bottom: 1px solid var(--linie); background: no
 .heute-liste li.mit-aktionen { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--nebel); }
 .heute-liste li.mit-aktionen .aktionen { gap: 6px; }
 details.optional summary { cursor: pointer; font-weight: 600; color: var(--see); margin-bottom: 10px; }
+
+/* ---------- Aufenthalte ---------- */
+.schublade.breit { width: min(720px, 100vw); }
+.aufenthalt-gruppen { display: grid; gap: 20px; margin-top: 16px; }
+.gruppe-titel { font-family: var(--titel); font-size: 1.125rem; margin: 0 0 8px; }
+.gruppe-titel .leise, .leise { color: var(--tinte-leise); font-weight: 400; }
+.aufenthalt-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.aufenthalt-liste button {
+  width: 100%; display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; text-align: left;
+  border: 1px solid var(--linie); background: var(--papier); border-radius: var(--radius-klein); padding: 10px 12px;
+  font: inherit; color: inherit; cursor: pointer; box-shadow: inset 4px 0 0 var(--typ);
+}
+.aufenthalt-liste button:hover { border-color: var(--tinte-leise); }
+.aufenthalt-liste .platznr { font-family: var(--titel); font-size: 1.25rem; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.aufenthalt-liste .platznr.leise { font-size: 0.875rem; font-weight: 600; }
+.aufenthalt-liste .haupt { display: grid; gap: 2px; min-width: 0; }
+.aufenthalt-liste .haupt .leise { font-size: 0.875rem; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.aufenthalt-liste .rechts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.aufenthalt-liste .land { font-size: 0.75rem; font-weight: 600; color: var(--tinte-leise); border: 1px solid var(--linie); border-radius: 4px; padding: 0 4px; }
+.nicht-angereist { border-left: 4px solid var(--harz); padding-left: 12px; }
+.aufenthalt-panel { gap: 18px; grid-template-columns: minmax(0, 1fr); }
+.aufenthalt-panel > * { min-width: 0; }
+.tabelle-rahmen { overflow-x: auto; position: relative; }
+.aufenthalt-panel .panel-abschnitt { border-top: 1px solid var(--linie); padding-top: 12px; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+.abschnitt-kopf { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.abschnitt-kopf h3 { margin: 0; }
+.abschnitt-kopf button.link { display: inline-flex; align-items: center; gap: 4px; font-size: 0.875rem; }
+.hinweis.klein, .klein { font-size: 0.8125rem; }
+.bearbeiten-form { display: grid; gap: 12px; background: var(--nebel); border-radius: var(--radius-klein); padding: 12px; }
+.felder.zwei { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.felder.vier { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; }
+.felder .breit2 { grid-column: span 2; }
+.felder p.breit2 { margin: 0; align-self: center; }
+table.leistungen { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+table.leistungen th, table.leistungen td { padding: 6px 6px; text-align: left; border-bottom: 1px solid var(--nebel); vertical-align: top; }
+table.leistungen thead th { font-size: 0.8125rem; color: var(--tinte-leise); font-weight: 600; border-bottom-color: var(--linie); }
+table.leistungen tr.gruppe th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--tinte-leise); padding-top: 10px; }
+table.leistungen .zahl { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.leistungen td.teilzeit { color: var(--see-dunkel); font-weight: 600; }
+table.leistungen tr.aktiv td { background: var(--see-zart); }
+table.leistungen tr.formzeile td { padding: 0 0 10px; }
+.zeilen-aktionen { white-space: nowrap; text-align: right; }
+.zeilen-aktionen button.link { font-size: 0.8125rem; margin-left: 8px; }
+button.link.gefahr { color: var(--ziegel); font-weight: 600; }
+.taxen { background: var(--nebel); border-radius: var(--radius-klein); padding: 10px 12px; display: grid; gap: 6px; }
+.taxen h4 { margin: 0; font-size: 0.875rem; }
+.taxen .tax-liste { display: grid; gap: 4px; margin: 0; }
+.taxen .tax-zeile dd { margin: 0; text-align: right; }
+.taxen .tax-zeile { display: flex; justify-content: space-between; gap: 12px; }
+.taxen .tax-zeile dt { color: var(--tinte); }
+.je-nacht { min-width: 0; max-width: 100%; }
+.je-nacht-raster { max-width: 100%; }
+.je-nacht:not([open]) .je-nacht-raster { display: none; }
+.je-nacht summary { cursor: pointer; font-size: 0.875rem; color: var(--see); font-weight: 600; }
+.je-nacht-raster { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(56px, 1fr); gap: 4px; overflow-x: auto; margin-top: 8px; }
+.je-nacht-raster > div { display: grid; text-align: center; font-size: 0.75rem; background: var(--nebel); border-radius: 4px; padding: 4px; font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  .felder.vier { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .aufenthalt-liste button { grid-template-columns: 40px 1fr; }
+  .aufenthalt-liste .rechts { grid-column: 2; justify-content: flex-start; }
+  table.leistungen td, table.leistungen th { white-space: nowrap; }
+  .taxen .tax-zeile { display: grid; gap: 0; }
+  .taxen .tax-zeile dd { text-align: left; }
+}

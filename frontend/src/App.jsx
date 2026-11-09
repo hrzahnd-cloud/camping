@@ -9,6 +9,7 @@ import Belegung from "./seiten/Belegung.jsx";
 import Gaeste from "./seiten/Gaeste.jsx";
 import Einstellungen from "./seiten/Einstellungen.jsx";
 import Modulseite from "./seiten/Modulseite.jsx";
+import Aufenthalte from "./seiten/Aufenthalte.jsx";
 
 // Reihenfolge = Reihenfolge im Menü. Module, die unter Einstellungen
 // ausgeschaltet sind, erscheinen nicht.
@@ -17,7 +18,7 @@ const SEITEN = [
   { code: "reservationen", pfad: "reservationen", name: "Reservationen", icon: Inbox, Komponente: Reservationen },
   { code: "belegung", pfad: "belegung", name: "Belegung", icon: CalendarRange, Komponente: Belegung },
   { code: "gaeste", pfad: "gaeste", name: "Gäste", icon: Users, Komponente: Gaeste },
-  { code: "buchungen", pfad: "buchungen", name: "Buchungen", icon: BedDouble },
+  { code: "buchungen", pfad: "aufenthalte", name: "Aufenthalte", icon: BedDouble, Komponente: Aufenthalte },
   { code: "artikel", pfad: "artikel", name: "Artikel & Preise", icon: Package },
   { code: "rechnungen", pfad: "rechnungen", name: "Rechnungen", icon: FileText },
   { code: "auswertungen", pfad: "auswertungen", name: "Auswertungen", icon: BarChart3 },
@@ -60,7 +61,7 @@ export default function App() {
         Das Modul «{seite.name}» ist ausgeschaltet. Unter <a href="#/einstellungen">Einstellungen</a> lässt es sich einschalten.
       </p>
     );
-  } else if (seite.Komponente) inhalt = <seite.Komponente />;
+  } else if (seite.Komponente) inhalt = <seite.Komponente module={module} />;
   else inhalt = <Modulseite modul={modulInfo} />;
 
   return (
