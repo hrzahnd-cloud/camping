@@ -61,6 +61,8 @@ PERSONEN = ("erwachsene", "kinder", "kleinkinder")
 MIT_UMWELTABGABE = ("zeltwiese", "wohnwagen", "camper")
 """Umweltabgabe pro Stellplatz und Nacht (mit dem Betrieb festgelegt, November 2026);
 ein Zusatzzelt auf demselben Platz zählt nicht als eigener Stellplatz, Zwärgli/Spycher ohne."""
+MIT_AUTO = ("zeltwiese", "wohnwagen")
+"""Check-in schlägt 1 Auto vor (mit dem Betrieb festgelegt, November 2026); Fahrräder werden nicht erfasst."""
 
 
 def ist_stueck(art: str) -> bool:
@@ -72,8 +74,13 @@ def menge(z: BuchungLeistung) -> int:
     return z.anzahl if ist_stueck(z.art) else z.anzahl * z.naechte
 
 
-def grundzeilen(b: Buchung) -> list[BuchungLeistung]:
-    """Zeilen beim Check-in: Personen und Stellplatz über den ganzen Aufenthalt."""
+def standard_fahrzeuge(stellplatz_typ: str | None) -> tuple[int, int]:
+    """(Autos, Motorräder), die der Check-in vorschlägt: Zelt/Wohnwagen 1 Auto, sonst keines."""
+    return (1, 0) if stellplatz_typ in MIT_AUTO else (0, 0)
+
+
+def grundzeilen(b: Buchung, autos: int = 0, motorraeder: int = 0) -> list[BuchungLeistung]:
+    """Zeilen beim Check-in: Personen, Stellplatz (mit Umweltabgabe) und Fahrzeuge über den ganzen Aufenthalt."""
     zeilen = []
     for art, anzahl in (("erwachsene", b.anzahl_erwachsene), ("kinder", b.anzahl_kinder),
                         ("kleinkinder", b.anzahl_kleinkinder)):
@@ -83,6 +90,9 @@ def grundzeilen(b: Buchung) -> list[BuchungLeistung]:
         zeilen.append(BuchungLeistung(art=b.stellplatz_typ, anzahl=1, von=b.von, bis=b.bis))
     if b.stellplatz_typ in MIT_UMWELTABGABE:
         zeilen.append(BuchungLeistung(art="umweltabgabe", anzahl=1, von=b.von, bis=b.bis))
+    for art, anzahl in (("auto", autos), ("motorrad", motorraeder)):
+        if anzahl:
+            zeilen.append(BuchungLeistung(art=art, anzahl=anzahl, von=b.von, bis=b.bis))
     return zeilen
 
 
