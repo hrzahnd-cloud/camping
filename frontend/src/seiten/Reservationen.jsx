@@ -42,7 +42,7 @@ const NUR_VOLLSTAENDIG = new Set(["erstantwort_gesendet", "zahlung_ausstehend", 
 
 const LEER = {
   quelle: "manuell", sprache: "de", gast_name: "", gast_email: "", gast_telefon: "",
-  gewuenscht_von: "", gewuenscht_bis: "", stellplatz_typ: "", anzahl_erwachsene: 2, anzahl_kinder: 0,
+  gewuenscht_von: "", gewuenscht_bis: "", stellplatz_typ: "", anzahl_erwachsene: 2, anzahl_kinder: 0, anzahl_kleinkinder: 0,
   bemerkung: "", rohtext: "",
 };
 
@@ -127,7 +127,7 @@ export default function Reservationen() {
                   <span className="zeile2">
                     {zeitraum(a.gewuenscht_von, a.gewuenscht_bis)}
                     <span className="trenner" aria-hidden="true" /><TypMarke code={a.stellplatz_typ} />
-                    <span className="trenner" aria-hidden="true" />{personen(a.anzahl_erwachsene, a.anzahl_kinder)}
+                    <span className="trenner" aria-hidden="true" />{personen(a.anzahl_erwachsene, a.anzahl_kinder, a.anzahl_kleinkinder)}
                   </span>
                   {!a.vollstaendig && <span className="zeile3">Es fehlt: {fehlendText(a.fehlende_angaben)}</span>}
                 </button>
@@ -505,7 +505,7 @@ function Detail({ id, onGeaendert }) {
         <dt>Zeitraum</dt>
         <dd>{anfrage.gewuenscht_von ? `${datumVoll(anfrage.gewuenscht_von)} bis ${datumVoll(anfrage.gewuenscht_bis)}` : "fehlt"}{n ? ` (${n} ${n === 1 ? "Nacht" : "Nächte"})` : ""}</dd>
         <dt>Stellplatz</dt><dd><TypMarke code={anfrage.stellplatz_typ} /></dd>
-        <dt>Personen</dt><dd>{personenLang(anfrage.anzahl_erwachsene, anfrage.anzahl_kinder)}</dd>
+        <dt>Personen</dt><dd>{personenLang(anfrage.anzahl_erwachsene, anfrage.anzahl_kinder, anfrage.anzahl_kleinkinder)}</dd>
         <dt>E-Mail</dt><dd><a href={`mailto:${anfrage.gast_email}`}>{anfrage.gast_email}</a></dd>
         <dt>Telefon</dt><dd>{anfrage.gast_telefon || "–"}</dd>
         <dt>Sprache</dt><dd>{SPRACHEN[anfrage.sprache] ?? anfrage.sprache}</dd>
@@ -581,6 +581,7 @@ function Formular({ anfrage, neu = false, onGespeichert, onAbbrechen }) {
       stellplatz_typ: leerZuNull(werte.stellplatz_typ),
       anzahl_erwachsene: Number(werte.anzahl_erwachsene || 0),
       anzahl_kinder: Number(werte.anzahl_kinder || 0),
+      anzahl_kleinkinder: Number(werte.anzahl_kleinkinder || 0),
       bemerkung: leerZuNull(werte.bemerkung),
       newsletter_einwilligung: Boolean(werte.newsletter_einwilligung),
     };
@@ -615,8 +616,9 @@ function Formular({ anfrage, neu = false, onGespeichert, onAbbrechen }) {
             {Object.entries(SPRACHEN).map(([c, n]) => <option key={c} value={c}>{n}</option>)}
           </select>
         </label>
-        <label>Erwachsene<input type="number" min="0" value={werte.anzahl_erwachsene} onChange={setze("anzahl_erwachsene")} /></label>
-        <label>Kinder<input type="number" min="0" value={werte.anzahl_kinder} onChange={setze("anzahl_kinder")} /></label>
+        <label>Erwachsene (ab 16)<input type="number" min="0" value={werte.anzahl_erwachsene} onChange={setze("anzahl_erwachsene")} /></label>
+        <label>Kinder (6–15)<input type="number" min="0" value={werte.anzahl_kinder} onChange={setze("anzahl_kinder")} /></label>
+        <label>Kleinkinder (0–5)<input type="number" min="0" value={werte.anzahl_kleinkinder ?? 0} onChange={setze("anzahl_kleinkinder")} /></label>
         {neu && (
           <label>Eingang über
             <select value={werte.quelle} onChange={setze("quelle")}>

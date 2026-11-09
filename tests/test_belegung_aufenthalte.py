@@ -128,3 +128,43 @@ def test_checkin_braucht_nationalitaet_aber_keine_adresse(client):
     assert client.post("/aufenthalte", json={**basis, "nationalitaet": "Schweiz"}).status_code == 422
     r = client.post("/aufenthalte", json={**basis, "nationalitaet": "NL"})
     assert r.status_code == 201 and r.json()["nationalitaet"] == "NL" and r.json()["strasse"] is None
+
+
+def test_kleinkinder_getrennt_und_in_belegung_bei_k(client):
+    a = _anfrage(client, HEUTE, HEUTE + timedelta(days=2), name="Klein Kind", anzahl_kinder=1, anzahl_kleinkinder=2)
+    assert a["anzahl_kleinkinder"] == 2
+    auf = client.post("/aufenthalte", json={"reservationsanfrage_id": a["id"], "nationalitaet": "CH", "vorname": "Klein",
+                                            "nachname": "Kind", "stellplatz_typ": "wohnwagen", "von": str(HEUTE),
+                                            "bis": str(HEUTE + timedelta(days=2)), "anzahl_erwachsene": 2,
+                                            "anzahl_kinder": 1, "anzahl_kleinkinder": 2}).json()
+    assert (auf["anzahl_kinder"], auf["anzahl_kleinkinder"]) == (1, 2)
+    e = client.get(f"/belegung?von={HEUTE}&bis={HEUTE}").json()["eintraege"][0]
+    assert (e["erwachsene"], e["kinder"]) == (2, 3)
+
+
+def test_aufenthalt_aendern_verlaengern_und_abreise_zuruecknehmen(client):
+    r = client.post("/aufenthalte", json={"nationalitaet": "DE", "vorname": "Vera", "nachname": "Länger",
+                                          "stellplatz_typ": "camper", "von": str(HEUTE), "bis": str(HEUTE + timedelta(days=1))})
+    bid = r.json()["buchung_id"]
+    neu_bis = HEUTE + timedelta(days=4)
+    r = client.patch(f"/aufenthalte/{bid}", json={"bis": str(neu_bis), "platz": " 22 ", "anzahl_kleinkinder": 1,
+                                                  "ort": "Köln", "geburtsdatum": "1980-05-01", "strasse": ""})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert (d["bis"], d["platz"], d["anzahl_kleinkinder"], d["ort"], d["geburtsdatum"], d["strasse"]) == \
+        (str(neu_bis), "22", 1, "Köln", "1980-05-01", None)
+    assert client.get(f"/belegung?von={HEUTE + timedelta(days=3)}&bis={HEUTE + timedelta(days=3)}").json()["auslastung"][0]["belegt"] == 1
+    # Pflichtfelder bleiben Pflicht, Zeitraum muss stimmen
+    assert client.patch(f"/aufenthalte/{bid}", json={"nationalitaet": None}).status_code == 400
+    assert client.patch(f"/aufenthalte/{bid}", json={"nachname": "  "}).status_code == 400
+    assert client.patch(f"/aufenthalte/{bid}", json={"bis": str(HEUTE)}).status_code == 400
+    assert client.patch(f"/aufenthalte/{bid}", json={"von": str(HEUTE + timedelta(days=1))}).status_code == 400
+
+    # Liste: eingecheckt / ausgecheckt
+    assert [x["buchung_id"] for x in client.get("/aufenthalte?status=eingecheckt").json()] == [bid]
+    client.post(f"/aufenthalte/{bid}/abreise", json={})
+    assert client.get("/aufenthalte?status=eingecheckt").json() == []
+    assert client.get("/aufenthalte?status=ausgecheckt").json()[0]["status"] == "ausgecheckt"
+    r = client.post(f"/aufenthalte/{bid}/abreise-zuruecknehmen")
+    assert r.status_code == 200 and r.json()["status"] == "eingecheckt"
+    assert client.post(f"/aufenthalte/{bid}/abreise-zuruecknehmen").status_code == 400

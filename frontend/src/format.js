@@ -45,7 +45,8 @@ export const datumVoll = (iso) => (iso ? voll.format(ausIso(iso)) : "–");
 const mitJahr = (iso) => (iso && Number(iso.slice(0, 4)) !== new Date().getFullYear() ? ` ${iso.slice(0, 4)}` : "");
 export const zeitraum = (von, bis) => (von && bis ? `${datumKurz(von)} – ${datumKurz(bis)}${mitJahr(bis)}` : "Zeitraum fehlt");
 export const naechte = (von, bis) => (von && bis ? Math.round((ausIso(bis) - ausIso(von)) / 86400000) : null);
-export const personen = (e, k) => `${e ?? 0} E / ${k ?? 0} K`;
+// E = Erwachsene (ab 16), K = Kinder (6–15), KK = Kleinkinder (0–5, nur wenn vorhanden)
+export const personen = (e, k, kk) => `${e ?? 0} E / ${k ?? 0} K${kk ? ` / ${kk} KK` : ""}`;
 
 export const isoDatum = (d) => {
   const z = (n) => String(n).padStart(2, "0");
@@ -54,5 +55,6 @@ export const isoDatum = (d) => {
 export const plusTage = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
 // "2 Erwachsene, 1 Kind" – ausgeschrieben, mit Einzahl/Mehrzahl
-export const personenLang = (e, k) =>
-  `${e ?? 0} ${e === 1 ? "Erwachsene/r" : "Erwachsene"}, ${k ?? 0} ${k === 1 ? "Kind" : "Kinder"}`;
+export const personenLang = (e, k, kk) =>
+  `${e ?? 0} ${e === 1 ? "Erwachsene/r" : "Erwachsene"}, ${k ?? 0} ${k === 1 ? "Kind" : "Kinder"}`
+  + (kk ? `, ${kk} ${kk === 1 ? "Kleinkind" : "Kleinkinder"}` : "");

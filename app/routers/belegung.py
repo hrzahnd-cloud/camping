@@ -129,7 +129,7 @@ def belegung(
                 zeile[2] += k
 
     for a in anfragen:
-        e, k = a.anzahl_erwachsene or 0, a.anzahl_kinder or 0
+        e, k = a.anzahl_erwachsene or 0, (a.anzahl_kinder or 0) + (a.anzahl_kleinkinder or 0)  # K inkl. Kleinkinder
         eintraege.append(BelegungEintrag(
             id=str(a.id), anfrage_id=str(a.id), nummer=a.nummer, gast_name=a.gast_name, stellplatz_typ=a.stellplatz_typ,
             von=a.gewuenscht_von, bis=a.gewuenscht_bis,
@@ -140,14 +140,15 @@ def belegung(
     for b in buchungen:
         anfrage = db.get(Reservationsanfrage, b.reservationsanfrage_id) if b.reservationsanfrage_id else None
         gast = b.hauptgast
+        kinder_b = (b.anzahl_kinder or 0) + (b.anzahl_kleinkinder or 0)
         eintraege.append(BelegungEintrag(
             art="aufenthalt", id=str(b.id), buchung_id=str(b.id),
             anfrage_id=str(anfrage.id) if anfrage else None, nummer=anfrage.nummer if anfrage else None,
             platz=b.platz, gast_name=f"{gast.vorname} {gast.nachname}".strip() if gast else "?",
             stellplatz_typ=b.stellplatz_typ, von=b.von, bis=b.bis, naechte=(b.bis - b.von).days,
-            erwachsene=b.anzahl_erwachsene or 0, kinder=b.anzahl_kinder or 0, status=b.status, akzeptiert=True,
+            erwachsene=b.anzahl_erwachsene or 0, kinder=kinder_b, status=b.status, akzeptiert=True,
         ))
-        zaehlen(b.stellplatz_typ, b.von, b.bis, b.anzahl_erwachsene or 0, b.anzahl_kinder or 0)
+        zaehlen(b.stellplatz_typ, b.von, b.bis, b.anzahl_erwachsene or 0, kinder_b)
     eintraege.sort(key=lambda x: (x.von, x.gast_name))
 
     werte = bel.einstellungen(db)
@@ -215,4 +216,4 @@ def nicht_angereist(stichtag: date | None = None, tage: int = 14, db: Session = 
     ).scalars().all()
     return [NichtAngereist(anfrage_id=str(a.id), nummer=a.nummer, gast_name=a.gast_name, gast_telefon=a.gast_telefon,
                            stellplatz_typ=a.stellplatz_typ, von=a.gewuenscht_von, bis=a.gewuenscht_bis,
-                           erwachsene=a.anzahl_erwachsene or 0, kinder=a.anzahl_kinder or 0) for a in anfragen]
+                           erwachsene=a.anzahl_erwachsene or 0, kinder=(a.anzahl_kinder or 0) + (a.anzahl_kleinkinder or 0)) for a in anfragen]

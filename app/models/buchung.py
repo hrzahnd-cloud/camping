@@ -46,6 +46,9 @@ class Buchung(Base, IDMixin, TimestampMixin):
     """Platznummer/-bezeichnung als Freitext, optional."""
     anzahl_erwachsene: Mapped[int] = mapped_column(Integer, default=1)
     anzahl_kinder: Mapped[int] = mapped_column(Integer, default=0)
+    """Kinder 6–15 Jahre (ohne Kurtaxe)."""
+    anzahl_kleinkinder: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    """Kleinkinder 0–5 Jahre (gratis). Erwachsene = ab 16 Jahren."""
     bemerkung: Mapped[str | None] = mapped_column(Text)
     von: Mapped[date] = mapped_column(Date)
     bis: Mapped[date] = mapped_column(Date)

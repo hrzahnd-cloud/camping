@@ -33,6 +33,7 @@ class ReservationsanfrageCreate(BaseModel):
     stellplatz_typ: StellplatzTyp | None = None
     anzahl_erwachsene: int = Field(default=1, ge=0)
     anzahl_kinder: int = Field(default=0, ge=0)
+    anzahl_kleinkinder: int = Field(default=0, ge=0)
     bemerkung: str | None = None
     rohtext: str | None = None
     newsletter_einwilligung: bool = False
@@ -49,6 +50,7 @@ class ReservationsanfrageUpdate(BaseModel):
     stellplatz_typ: StellplatzTyp | None = None
     anzahl_erwachsene: int | None = Field(default=None, ge=0)
     anzahl_kinder: int | None = Field(default=None, ge=0)
+    anzahl_kleinkinder: int | None = Field(default=None, ge=0)
     bemerkung: str | None = None
     newsletter_einwilligung: bool | None = None
 
@@ -72,6 +74,7 @@ class ReservationsanfrageOut(BaseModel):
     stellplatz_typ: str | None
     anzahl_erwachsene: int
     anzahl_kinder: int
+    anzahl_kleinkinder: int = 0
     bemerkung: str | None = None
     vollstaendig: bool
     fehlende_angaben: str | None

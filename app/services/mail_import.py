@@ -85,6 +85,7 @@ class ParsedAnfrage:
     stellplatz_typ: str | None = None
     anzahl_erwachsene: int = 0
     anzahl_kinder: int = 0
+    anzahl_kleinkinder: int = 0
     bemerkung: str | None = None
     rohtext: str = ""
     mail_message_id: str | None = None
@@ -327,9 +328,8 @@ def parse_reservationsmail(raw: bytes | EmailMessage, jetzt: datetime | None = N
     if formular:
         # Homepage-Formular: feste Felder statt Textsuche
         von, bis = formular["von"], formular["bis"]
-        # Kleinkinder zählen bei den Kindern (K) mit; die Aufteilung bleibt in der
-        # Bemerkung erhalten (wichtig für Preise: Kleinkinder sind gratis).
-        erw, kinder = formular["erwachsene"], formular["kinder"] + formular["kleinkinder"]
+        # Kleinkinder (bis 5 Jahre) separat: sie sind gratis
+        erw, kinder, kleinkinder = formular["erwachsene"], formular["kinder"], formular["kleinkinder"]
         telefon_wert = formular["telefon"]
         stellplatz = formular["stellplatz_typ"]
         sprache = _erkenne_sprache(formular["nachricht"] or "") if formular["nachricht"] else "de"
@@ -341,6 +341,7 @@ def parse_reservationsmail(raw: bytes | EmailMessage, jetzt: datetime | None = N
     else:
         von, bis = _erkenne_daten(volltext, eingang.date())
         erw, kinder = _erkenne_personen(volltext)
+        kleinkinder = 0
         treffer = _TELEFON.search(volltext)
         telefon_wert = treffer[1] if treffer else None
         stellplatz = _erkenne_stellplatz(volltext)
@@ -363,6 +364,7 @@ def parse_reservationsmail(raw: bytes | EmailMessage, jetzt: datetime | None = N
         stellplatz_typ=stellplatz,
         anzahl_erwachsene=erw,
         anzahl_kinder=kinder,
+        anzahl_kleinkinder=kleinkinder,
         bemerkung=bemerkung,
         rohtext=f"Betreff: {betreff}\n\n{text}"[:MAX_ROHTEXT],
         mail_message_id=message_id[:255],
@@ -413,6 +415,7 @@ def speichere_anfrage(db: Session, parsed: ParsedAnfrage) -> Reservationsanfrage
         stellplatz_typ=parsed.stellplatz_typ,
         anzahl_erwachsene=parsed.anzahl_erwachsene,
         anzahl_kinder=parsed.anzahl_kinder,
+        anzahl_kleinkinder=parsed.anzahl_kleinkinder,
         bemerkung=parsed.bemerkung,
         rohtext=parsed.rohtext,
         mail_message_id=parsed.mail_message_id,
