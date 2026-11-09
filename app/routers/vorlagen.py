@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.kommunikation import EmailVorlage
 from app.services import antwortmail as am
+from app.services import richtpreis
 
 router = APIRouter(tags=["Antwortmails"])
 
@@ -86,14 +87,15 @@ def vorlage_vorschau(daten: VorschauAnfrage, db: Session = Depends(get_db)):
     betrieb = am.betriebsangaben(db)
     mit_anzahlung = daten.typ == am.TYP_ERSTANTWORT
     beispiel = am.beispiel_anfrage()
+    preis, preis_warnung = richtpreis.fuer_vorlage(db, beispiel, daten.sprache, daten.betreff + daten.koerper)
     werte = am.werte_fuer(beispiel, daten.sprache, Decimal("120.00") if mit_anzahlung else None,
                           date(2027, 3, 31) if mit_anzahlung else None, betrieb, "Sind Hunde erlaubt?",
-                          Decimal("118.40") if daten.typ == am.TYP_BESTAETIGUNG else None)
+                          Decimal("118.40") if daten.typ == am.TYP_BESTAETIGUNG else None, preis)
     betreff, u1 = am.ersetze(daten.betreff, werte)
     betreff = am.betreff_mit_nummer(betreff, beispiel.nummer, daten.sprache)
     text, u2 = am.ersetze(daten.koerper, werte)
     return Vorschau(betreff=betreff, text=text, unbekannte_platzhalter=sorted(set(u1 + u2)),
-                    warnungen=am.warnungen_betrieb(betrieb, daten.typ))
+                    warnungen=am.warnungen_betrieb(betrieb, daten.typ) + ([preis_warnung] if preis_warnung else []))
 
 
 @router.get("/email-vorlagen/typen")

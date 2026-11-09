@@ -58,3 +58,7 @@ def modul_setzen(db: Session, code: str, aktiv: bool) -> None:
     else:
         eintrag.aktiv = aktiv
     db.commit()
+
+
+def modul_aktiv(db: Session, code: str) -> bool:
+    return any(m["code"] == code and m["aktiv"] for m in modulstatus(db))

@@ -120,3 +120,73 @@ def test_zwaergli_mit_zwei_personen_inbegriffen(client, db, grunddaten):
     assert [(a["bezeichnung"], a["betrag"]) for a in d["preise"]["abzuege"]] == [
         ("Inbegriffen im Zwärgli (2 Personen je Nacht)", "-32.00")]
     assert d["preise"]["total"] == "96.00"
+
+
+# --- unverbindlicher Preis pro Nacht in der Bestätigung --------------------------
+
+from app.models.reservation import Reservationsanfrage  # noqa: E402
+from app.services import richtpreis  # noqa: E402
+
+
+def _anfrage(db, typ, von, bis, e=2, k=0, kk=0):
+    a = Reservationsanfrage(quelle="manuell", eingangs_datum=date(2026, 10, 1), sprache="de", gast_name="Preis Test",
+                            gast_email="preis@example.com", gewuenscht_von=von, gewuenscht_bis=bis, stellplatz_typ=typ,
+                            anzahl_erwachsene=e, anzahl_kinder=k, anzahl_kleinkinder=kk, status="bezahlt_akzeptiert")
+    db.add(a)
+    db.commit()
+    return a
+
+
+def test_richtpreis_hauptsaison_mit_kleinkind(db, grunddaten):
+    a = _anfrage(db, "wohnwagen", date(2027, 7, 2), date(2027, 7, 5), e=2, k=1, kk=1)
+    text, warnung = richtpreis.text(db, a, "de")
+    assert warnung is None
+    assert text == ("Unverbindlicher Preis pro Nacht (Hauptsaison): CHF 47.00\n"
+                    "Wohnwagen CHF 17.00, 2 Erwachsene à CHF 8.00, 1 Kind à CHF 4.00, Umweltabgabe CHF 1.00, "
+                    "Kurtaxe und Beherbergungsabgabe CHF 9.00, 1 Kleinkind gratis")
+    fr, _ = richtpreis.text(db, a, "fr")
+    assert fr.startswith("Prix indicatif par nuit (haute saison) : CHF 47.00") or fr.startswith("Prix indicatif par nuit (haute saison): CHF 47.00")
+
+
+def test_richtpreis_ueber_saisonwechsel_und_zwaergli(db, grunddaten):
+    a = _anfrage(db, "zeltwiese", date(2027, 6, 29), date(2027, 7, 2), e=2, k=1)
+    text, _ = richtpreis.text(db, a, "de")
+    teile = text.split("\n\n")
+    assert teile[0].startswith("Unverbindlicher Preis pro Nacht (Vorsaison, 2 Nächte): CHF 39.40")
+    assert teile[1].startswith("Unverbindlicher Preis pro Nacht (Hauptsaison, 1 Nacht): CHF 44.00")
+    z = _anfrage(db, "zwaergli", date(2027, 8, 1), date(2027, 8, 3), e=3)
+    text, _ = richtpreis.text(db, z, "de")
+    assert text == ("Unverbindlicher Preis pro Nacht (Hauptsaison): CHF 61.50\n"
+                    "Zwärgli für 2 Personen CHF 40.00, 1 weitere Person à CHF 8.00, Kurtaxe und Beherbergungsabgabe CHF 13.50")
+    winter = _anfrage(db, "camper", date(2026, 11, 20), date(2026, 11, 22))
+    text, warnung = richtpreis.text(db, winter, "de")
+    assert text == "" and "20.11.2026" in warnung
+
+
+def test_bestaetigung_mit_preis_nur_bei_eingeschaltetem_modul(client, db, grunddaten):
+    a = client.post("/reservationsanfragen", json={
+        "quelle": "manuell", "eingangs_datum": "2026-10-01T10:00:00+02:00", "sprache": "de", "gast_name": "Mia Preis",
+        "gast_email": "mia@example.com", "gewuenscht_von": "2027-07-02", "gewuenscht_bis": "2027-07-05",
+        "stellplatz_typ": "camper", "anzahl_erwachsene": 2}).json()
+    client.post(f"/reservationsanfragen/{a['id']}/zahlung-bestaetigen", json={})
+    vorbereiten = lambda: client.post(f"/reservationsanfragen/{a['id']}/antwort/vorbereiten",  # noqa: E731
+                                      json={"typ": "bestaetigung_definitiv", "sprache": "de"}).json()
+    ohne = vorbereiten()
+    assert "Unverbindlicher Preis" not in ohne["text"] and not any("Preis" in w for w in ohne["warnungen"])
+    client.put("/einstellungen/module/artikel", json={"aktiv": True})
+    mit = vorbereiten()
+    assert "Unverbindlicher Preis pro Nacht (Hauptsaison): CHF 44.00" in mit["text"]   # 18 + 2×8 + 1 + 2×4.50
+    assert mit["text"].index("Personen:") < mit["text"].index("Unverbindlicher Preis") < mit["text"].index("Wir freuen")
+
+
+def test_alte_bestaetigungsvorlage_erhaelt_platzhalter(db):
+    from app.models.kommunikation import EmailVorlage
+    from app.services import antwortmail as am
+    betreff, koerper = am.STARTVORLAGEN_BESTAETIGUNG["de"]
+    alt = koerper.replace("\n\n{{preisProNacht}}", "")
+    db.add(EmailVorlage(typ=am.TYP_BESTAETIGUNG, sprache="de", betreff=betreff, koerper=alt, aktiv=True))
+    db.add(EmailVorlage(typ=am.TYP_BESTAETIGUNG, sprache="fr", betreff="x", koerper="Eigener Text", aktiv=True))
+    db.commit()
+    am.startvorlagen_ergaenzen(db)
+    vorlagen = {v.sprache: v.koerper for v in db.query(EmailVorlage).filter_by(typ=am.TYP_BESTAETIGUNG)}
+    assert "{{preisProNacht}}" in vorlagen["de"] and vorlagen["fr"] == "Eigener Text"

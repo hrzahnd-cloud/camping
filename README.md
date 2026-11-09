@@ -109,6 +109,13 @@ Beträge je Leistung (je Nacht mit dem Preis der Saison), Taxen und Total inkl. 
 Wassertank ab 2 Nächten inbegriffen; Zwärgli/Spycher mit 2 Personen je Nacht inbegriffen,
 weitere Personen zum Personenpreis.
 
+**Unverbindlicher Preis in der Bestätigung:** Platzhalter `{{preisProNacht}}` (in den
+Startvorlagen enthalten; unveränderte frühere Vorlagen werden ergänzt). Preis pro Nacht aus
+Erwachsenen, Kindern (Kleinkinder gratis), Stellplatz, Umweltabgabe sowie Kurtaxe und
+Beherbergungsabgabe; Zwärgli/Spycher für 2 Personen plus weitere Personen und Taxen. Je Saison
+eine Zeile, ohne MWST-Angabe und ohne Fahrzeuge. Nur mit Modul «Artikel & Preise»; ausserhalb
+der Saison bleibt die Zeile leer (mit Hinweis beim Vorbereiten).
+
 **Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
 Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
 @example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
