@@ -1,7 +1,7 @@
 // Modul «Rechnungen»: Rechnungen aus den Aufenthalten – offen, bezahlt, storniert.
 // Erstellt werden sie im Aufenthalt bei der Abreise; hier: Übersicht, PDF, Zahlung, Storno.
 import { useCallback, useEffect, useState } from "react";
-import { FileText } from "lucide-react";
+import { FileText, Search } from "lucide-react";
 import { api } from "../api.js";
 import { datumKurz, datumVoll, heuteIso } from "../format.js";
 import { Bestaetigung, Schublade } from "./Belegung.jsx";
@@ -11,6 +11,7 @@ const REGISTER = [
   { code: "offen", name: "Offen" },
   { code: "bezahlt", name: "Bezahlt" },
   { code: "storniert", name: "Storniert" },
+  { code: "alle", name: "Alle" },
 ];
 const STATUS_TON = { offen: "offen", bezahlt: "ok", storniert: "aus" };
 const STATUS_NAME = { offen: "offen", bezahlt: "bezahlt", storniert: "storniert" };
@@ -33,8 +34,21 @@ export default function Rechnungen() {
     return () => window.removeEventListener("keydown", zu);
   }, []);
 
-  const anzahl = Object.fromEntries(REGISTER.map((r) => [r.code, (liste || []).filter((x) => x.status === r.code).length]));
-  const sichtbar = (liste || []).filter((x) => x.status === register);
+  // Suche: Rechnungsnummer, Gast, Reservationsnummer oder Betrag (Total, offen, Anzahlung; «245» oder «245,50»)
+  const [suche, setSuche] = useState("");
+  const begriff = suche.trim().toLowerCase();
+  const betrag = begriff.replace(",", ".");
+  const trifft = (x) => !begriff
+    || [x.nummer, x.gast_name, x.reservationsnummer].some((f) => (f || "").toLowerCase().includes(begriff))
+    || (/^[0-9.]+$/.test(betrag) && [x.gesamtbetrag, x.restbetrag, x.anzahlung]
+      .some((b) => b !== null && b !== undefined && Number(b).toFixed(2).startsWith(betrag)));
+  const gefunden = (liste || []).filter(trifft);
+  const imRegister = (code) => gefunden.filter((x) => code === "alle" || x.status === code);
+  const anzahl = Object.fromEntries(REGISTER.map((r) => [r.code, imRegister(r.code).length]));
+  const sichtbar = imRegister(register);
+  // Beim Suchen ins erste Register mit Treffern wechseln, falls das aktuelle leer ist
+  const ersterTreffer = begriff && !anzahl[register] ? REGISTER.find((r) => anzahl[r.code])?.code : null;
+  useEffect(() => { if (ersterTreffer) setRegister(ersterTreffer); }, [ersterTreffer]);
   const summeOffen = (liste || []).filter((x) => x.status === "offen").reduce((s, x) => s + Number(x.restbetrag), 0);
 
   return (
@@ -44,6 +58,11 @@ export default function Rechnungen() {
         {summeOffen > 0 && <p className="kopf-zahl">Offen: <strong>{chf(summeOffen)}</strong></p>}
       </header>
       <p className="hinweis">Rechnungen entstehen im Aufenthalt bei der Abreise («Aufenthalte» › Gast › «Rechnung erstellen»).</p>
+      <label className="suchfeld liste-suche">
+        <Search size={16} aria-hidden="true" />
+        <input type="search" placeholder="Nummer, Gast, Reservation oder Betrag suchen" value={suche}
+          onChange={(e) => setSuche(e.target.value)} aria-label="Rechnungen durchsuchen" />
+      </label>
       <div className="ablagen" role="tablist" aria-label="Rechnungen">
         {REGISTER.map((r) => (
           <button key={r.code} role="tab" aria-selected={register === r.code} onClick={() => setRegister(r.code)}>
@@ -53,7 +72,9 @@ export default function Rechnungen() {
       </div>
       {fehler && <p className="meldung fehler">{fehler}</p>}
       {!fehler && !liste && <p className="leer">Wird geladen …</p>}
-      {liste && sichtbar.length === 0 && <p className="leer">Keine Rechnungen {register === "offen" ? "offen" : `mit Status «${STATUS_NAME[register]}»`}.</p>}
+      {liste && sichtbar.length === 0 && (begriff
+        ? <p className="leer">Hier kein Treffer für «{suche.trim()}»{gefunden.length ? " – siehe die Zahlen bei den anderen Registern." : "."}</p>
+        : <p className="leer">Keine Rechnungen {register === "offen" ? "offen" : register === "alle" ? "vorhanden" : `mit Status «${STATUS_NAME[register]}»`}.</p>)}
       {sichtbar.length > 0 && (
         <div className="tabelle-rahmen">
           <table className="rechnungsliste">

@@ -693,3 +693,4 @@ table.auswertung.klein th { font-weight: 400; }
 .bfs-mail pre { margin: 0; white-space: pre-wrap; font-family: inherit; background: var(--nebel); padding: 10px; border-radius: var(--radius-klein); max-height: 360px; overflow: auto; }
 .meldung.klein { font-size: 0.875rem; }
 @media (max-width: 1000px) { .hesta-raster { grid-template-columns: 1fr; } }
+.liste-suche { max-width: 460px; margin-bottom: -6px; }
