@@ -86,7 +86,9 @@ Kleinkinder werden separat gespeichert; in der Belegung und in Mails zählen sie
 mit. Sind mehr Plätze belegt als vorhanden, zeigt die Belegung «überbucht».
 
 **Aufenthalte (Modul «Buchungen & Aufenthalte», einschaltbar):** Register «Auf dem Platz»,
-«Anreisen» (nächste 7 Tage und noch nicht Angereiste) und «Abgereist». Je Aufenthalt:
+«Anreisen» (nächste 7 Tage und noch nicht Angereiste) und «Abgereist» (letzte 60 Tage). Die
+Suche über den Registern findet Name, Platz, Reservationsnummer und Land (Code oder Name) –
+bei «Abgereist» auch ältere Abreisen; die Zahlen an den Registern zeigen die Treffer. Je Aufenthalt:
 Gast bearbeiten (Nationalität Pflicht), ganzen Aufenthalt verlängern/verkürzen und die
 *Leistungen* – jede Zeile mit Art, Anzahl und eigenem Zeitraum (Personen, Stellplatz, Zwärgli,
 Spycher, Strom, Auto, Motorrad, Umweltabgabe, Wassertank). So lassen sich Abwesenheiten
@@ -116,7 +118,8 @@ Beherbergungsabgabe; Zwärgli/Spycher für 2 Personen plus weitere Personen und 
 eine Zeile, ohne MWST-Angabe und ohne Fahrzeuge. Nur mit Modul «Artikel & Preise»; ausserhalb
 der Saison bleibt die Zeile leer (mit Hinweis beim Vorbereiten).
 
-**Rechnungen (Modul, einschaltbar):** Entstehen im Aufenthalt bei der Abreise («Rechnung
+**Rechnungen (Modul, einschaltbar):** Register «Offen», «Bezahlt», «Storniert», «Alle»; die Suche
+findet Rechnungsnummer, Gast, Reservationsnummer und Betrag («204» oder «204,50»). Entstehen im Aufenthalt bei der Abreise («Rechnung
 erstellen»): je Leistung, Saison und Preis eine Zeile, Zwärgli/Spycher mit inbegriffenen
 Personen, Kurtaxe und Beherbergungsabgabe (ohne MWST), die Anzahlung als eigene Zeile abgezogen.
 Bar oder TWINT gilt sofort als bezahlt, «offen» für eine spätere Überweisung; Kartenzahlung unter

@@ -2,8 +2,8 @@
 // Details je Aufenthalt: Gast, Zeitraum (ganz verlängern/verkürzen) und Leistungen
 // mit eigenem Zeitraum (Abwesenheiten, Personen mit Zusatzzelt, Strom …) samt Taxen.
 // Reservationen und Belegung funktionieren auch ohne dieses Modul.
-import { useCallback, useEffect, useState } from "react";
-import { LogIn, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { LogIn, Plus, Search } from "lucide-react";
 import { api } from "../api.js";
 import {
   STATUS, ausIso, datumKurz, datumVoll, heuteIso, isoDatum, naechte, personen, personenLang, plusTage, statusName,
@@ -38,10 +38,9 @@ export default function Aufenthalte({ module = [] }) {
     setFehler(null);
     try {
       const bisVorschau = isoDatum(plusTage(new Date(), VORSCHAU_TAGE));
-      const abgereistAb = isoDatum(plusTage(new Date(), -ABGEREIST_TAGE));
       const [platz, abgereist, bel, nicht] = await Promise.all([
         api.get("/aufenthalte?status=eingecheckt"),
-        api.get(`/aufenthalte?status=ausgecheckt&von=${abgereistAb}`),
+        api.get("/aufenthalte?status=ausgecheckt"),
         api.get(`/belegung?von=${heute}&bis=${bisVorschau}&status=akzeptiert`),
         api.get("/belegung/nicht-angereist"),
       ]);
@@ -59,7 +58,27 @@ export default function Aufenthalte({ module = [] }) {
     return () => { window.removeEventListener("hashchange", uebernehmen); window.removeEventListener("keydown", zu); };
   }, []);
 
-  const anzahl = daten ? { platz: daten.platz.length, anreisen: daten.anreisen.length + daten.nicht.length, abgereist: daten.abgereist.length } : {};
+  // Suche über alle Register: Name, Platz, Reservationsnummer, Nationalität (Code oder Name)
+  const [suche, setSuche] = useState("");
+  const begriff = suche.trim().toLowerCase();
+  const sichtbar = useMemo(() => {
+    if (!daten) return null;
+    const trifft = (...felder) => !begriff || felder.some((f) => (f || "").toString().toLowerCase().includes(begriff));
+    const aufenthalt = (a) => trifft(`${a.vorname} ${a.nachname}`, a.platz, a.reservationsnummer, a.nationalitaet,
+      LAENDER[a.nationalitaet]);
+    const abgereistAb = isoDatum(plusTage(new Date(), -ABGEREIST_TAGE));
+    return {
+      platz: daten.platz.filter(aufenthalt),
+      // ohne Suche die letzten Wochen, mit Suche alle Abreisen
+      abgereist: daten.abgereist.filter((a) => (begriff ? aufenthalt(a) : a.bis >= abgereistAb)),
+      anreisen: daten.anreisen.filter((e) => trifft(e.gast_name, e.nummer)),
+      nicht: daten.nicht.filter((e) => trifft(e.gast_name, e.nummer)),
+    };
+  }, [daten, begriff]);
+  const anzahl = sichtbar ? { platz: sichtbar.platz.length, anreisen: sichtbar.anreisen.length + sichtbar.nicht.length, abgereist: sichtbar.abgereist.length } : {};
+  // Beim Suchen ins erste Register mit Treffern wechseln, falls das aktuelle leer ist
+  const ersterTreffer = begriff && !anzahl[register] ? REGISTER.find((r) => anzahl[r.code])?.code : null;
+  useEffect(() => { if (ersterTreffer) setRegister(ersterTreffer); }, [ersterTreffer]);
   const oeffnen = (id) => setSchublade({ art: "aufenthalt", id });
 
   return (
@@ -73,6 +92,11 @@ export default function Aufenthalte({ module = [] }) {
         </div>
       </header>
 
+      <label className="suchfeld liste-suche">
+        <Search size={16} aria-hidden="true" />
+        <input type="search" placeholder="Name, Platz, Reservationsnummer oder Land suchen" value={suche}
+          onChange={(e) => setSuche(e.target.value)} aria-label="Aufenthalte durchsuchen" />
+      </label>
       <div className="ablagen" role="tablist" aria-label="Aufenthalte">
         {REGISTER.map((r) => (
           <button key={r.code} role="tab" aria-selected={register === r.code} onClick={() => setRegister(r.code)}>
@@ -83,15 +107,18 @@ export default function Aufenthalte({ module = [] }) {
 
       {fehler && <p className="meldung fehler">{fehler}</p>}
       {!fehler && !daten && <p className="leer">Wird geladen …</p>}
-      {daten && register === "platz" && <PlatzListe liste={daten.platz} heute={heute} onOeffnen={oeffnen} />}
-      {daten && register === "anreisen" && (
-        <AnreiseListe liste={daten.anreisen} nicht={daten.nicht} heute={heute}
+      {sichtbar && begriff && anzahl[register] === 0 && (
+        <p className="leer">Hier kein Treffer für «{suche.trim()}»{Object.values(anzahl).some(Boolean) ? " – siehe die Zahlen bei den anderen Registern." : "."}</p>
+      )}
+      {sichtbar && register === "platz" && !(begriff && !anzahl.platz) && <PlatzListe liste={sichtbar.platz} heute={heute} onOeffnen={oeffnen} />}
+      {sichtbar && register === "anreisen" && !(begriff && !anzahl.anreisen) && (
+        <AnreiseListe liste={sichtbar.anreisen} nicht={sichtbar.nicht} heute={heute}
           onOeffnen={(id) => setSchublade({ art: "reservation", id })} />
       )}
-      {daten && register === "abgereist" && (
+      {sichtbar && register === "abgereist" && !(begriff && !anzahl.abgereist) && (
         <>
-          <p className="hinweis">Abreisen der letzten {ABGEREIST_TAGE} Tage, neueste zuerst.</p>
-          <AufenthaltListe liste={daten.abgereist} heute={heute} onOeffnen={oeffnen} leer="Keine Abreisen in dieser Zeit." />
+          <p className="hinweis">{begriff ? "Treffer in allen Abreisen, neueste zuerst." : `Abreisen der letzten ${ABGEREIST_TAGE} Tage, neueste zuerst. Ältere über die Suche.`}</p>
+          <AufenthaltListe liste={sichtbar.abgereist} heute={heute} onOeffnen={oeffnen} leer="Keine Abreisen in dieser Zeit." />
         </>
       )}
 
