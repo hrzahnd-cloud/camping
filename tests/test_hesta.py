@@ -16,10 +16,12 @@ from app.services.hesta_export import (
 
 
 def _aufenthalt(db, platz, land, ankunft, abreise, bezahlt=True, nummer="2026-1000"):
-    gast = Gast(vorname="Test", nachname=land, land=land)
+    """`bezahlt=False` steht neu für einen stornierten Aufenthalt (zählt nicht)."""
+    gast = Gast(vorname="Test", nachname=land, land=land, nationalitaet=land)
     db.add(gast)
     db.flush()
-    buchung = Buchung(stellplatz_id=platz.id, von=ankunft, bis=abreise, hauptgast_id=gast.id)
+    buchung = Buchung(stellplatz_id=platz.id, von=ankunft, bis=abreise, hauptgast_id=gast.id,
+                      status="ausgecheckt" if bezahlt else "storniert", anzahl_erwachsene=1)
     db.add(buchung)
     db.flush()
     db.add(Aufenthalt(buchung_id=buchung.id, gast_id=gast.id, ankunft=ankunft, abreise=abreise))
@@ -53,7 +55,8 @@ def test_aggregation_juli_zaehlt_ankuenfte_und_naechte(db, betrieb):
     juli = {p.land: p for p in aggregiere_hesta_monat(db, 2026, 7)}
     assert (juli["CH"].anzahl_personen, juli["CH"].anzahl_uebernachtungen) == (1, 5)
     assert (juli["DE"].anzahl_personen, juli["DE"].anzahl_uebernachtungen) == (1, 2)
-    assert "FR" not in juli  # Rechnung nicht bezahlt
+    assert "FR" not in juli  # storniert
+    assert [p.name for p in aggregiere_hesta_monat(db, 2026, 7)] == ["Deutschland", "Schweden", "Schweiz"]  # alphabetisch
 
 
 def test_aggregation_august_hat_naechte_aber_keine_ankunft(db, betrieb):
@@ -131,3 +134,53 @@ def test_versand_mit_aktivierung_schickt_mail(client, betrieb, monkeypatch):
     assert antwort.status_code == 200
     assert antwort.json()["versandart"] == "email"
     assert gesendet[0]["To"] == "hotelstatistik@bfs.admin.ch"
+
+
+
+def test_alle_personen_nach_nationalitaet_erste_nacht_als_ankunft(client, db):
+    from app.services import leistungen as lst
+    gast = Gast(vorname="Familie", nachname="Österreich", land="DE", nationalitaet="AT")
+    db.add(gast)
+    db.flush()
+    b = Buchung(stellplatz_typ="wohnwagen", von=date(2026, 7, 30), bis=date(2026, 8, 2), anzahl_erwachsene=2,
+                anzahl_kinder=1, anzahl_kleinkinder=1, status="ausgecheckt", hauptgast_id=gast.id)
+    b.leistungen = lst.grundzeilen(b)
+    db.add(b)
+    db.commit()
+    juli = {p.land: p for p in aggregiere_hesta_monat(db, 2026, 7)}
+    assert (juli["AT"].name, juli["AT"].anzahl_personen, juli["AT"].anzahl_uebernachtungen) == ("Österreich", 4, 8)
+    aug = {p.land: p for p in aggregiere_hesta_monat(db, 2026, 8)}
+    assert (aug["AT"].anzahl_personen, aug["AT"].anzahl_uebernachtungen) == (0, 4)
+    v = client.get("/hesta/vorschau", params={"jahr": 2026, "monat": 7}).json()
+    assert v["positionen"][0]["name"] == "Österreich" and v["total_personen"] == 4
+
+
+def test_faellige_meldung_bis_eingereicht(client, db):
+    f = client.get("/hesta/faellig").json()
+    assert f["faellig"] is True and f["status"] == "offen"
+    m = client.post("/hesta/meldungen", json={"jahr": f["jahr"], "monat": f["monat"]}).json()
+    client.post(f"/hesta/meldungen/{m['id']}/als-eingereicht-markieren")
+    assert client.get("/hesta/faellig").json()["faellig"] is False
+
+
+def test_bfs_mail_import_und_einfuegen(client, db):
+    from email.message import EmailMessage
+
+    from app.services.mailverlauf import verarbeite_mail
+    msg = EmailMessage()
+    msg["From"] = "HESTA <noreply@bfs.admin.ch>"
+    msg["To"] = "camping@example.com"
+    msg["Subject"] = "HESTA: Ihre Zugangsdaten für Oktober 2026"
+    msg["Message-ID"] = "<hesta-1@bfs.admin.ch>"
+    msg["Date"] = "Sun, 01 Nov 2026 06:00:00 +0100"
+    msg.set_content("Benutzername: TEST123\nPasswort: geheim-test")
+    art, anfrage = verarbeite_mail(db, msg, Settings(_env_file=None))
+    assert (art, anfrage) == ("hesta", None)
+    assert verarbeite_mail(db, msg, Settings(_env_file=None))[0] == "duplikat"
+    mails = client.get("/hesta/zugangsmails").json()
+    assert mails[0]["betreff"].startswith("HESTA: Ihre Zugangsdaten") and "TEST123" in mails[0]["text"]
+    assert client.get("/einstellungen/postfach").json()["nicht_zugeordnet"] == []  # nicht bei den Reservations-Mails
+    r = client.post("/hesta/zugangsmails", json={"text": "Von: BFS <hesta@bfs.admin.ch>\nBetreff: Zugang Nov\n\nBenutzer: X"})
+    assert r.status_code == 201 and r.json()["betreff"] == "Zugang Nov" and r.json()["von"].startswith("BFS")
+    assert len(client.get("/hesta/zugangsmails").json()) == 2
+    assert client.delete(f"/hesta/zugangsmails/{r.json()['id']}").status_code == 204

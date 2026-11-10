@@ -25,10 +25,12 @@ from app.models.reservation import Reservationsanfrage
 TYP_ERSTANTWORT = "erstantwort_zahlungsinfo"
 TYP_FREI = "freie_antwort"
 TYP_BESTAETIGUNG = "bestaetigung_definitiv"
+TYP_AUSGEBUCHT = "absage_ausgebucht"
 VORLAGENTYPEN = {
     TYP_ERSTANTWORT: "Antwort mit Anzahlung",
     TYP_FREI: "Freie Antwort",
     TYP_BESTAETIGUNG: "Bestätigung definitiv",
+    TYP_AUSGEBUCHT: "Absage ausgebucht",
 }
 """Freie Antwort: nur Anrede, eigener Text und Signatur – für Rückfragen
 («Sind Hunde erlaubt?») und das Hin und Her vor der eigentlichen Reservation."""
@@ -261,8 +263,50 @@ Kind regards
 {{signatur}}""",
     ),
 }
+STARTVORLAGEN_AUSGEBUCHT = {
+    "de": ("{{antwortBetreff}}", """Guten Tag {{gastName}}
+
+Vielen Dank für Ihre Anfrage. Leider sind wir {{ausgebuchtZeitraum}} ausgebucht und können Ihnen dafür keinen Platz anbieten.
+
+{{wiederFrei}}
+
+Wir würden uns freuen, Sie ein anderes Mal bei uns begrüssen zu dürfen.
+
+Freundliche Grüsse
+{{signatur}}"""),
+    "fr": ("{{antwortBetreff}}", """Bonjour {{gastName}},
+
+Merci beaucoup pour votre demande. Malheureusement, nous sommes complets {{ausgebuchtZeitraum}} et ne pouvons pas vous proposer d’emplacement.
+
+{{wiederFrei}}
+
+Nous serions ravis de vous accueillir une autre fois.
+
+Meilleures salutations
+{{signatur}}"""),
+    "it": ("{{antwortBetreff}}", """Buongiorno {{gastName}},
+
+Grazie mille per la sua richiesta. Purtroppo siamo al completo {{ausgebuchtZeitraum}} e non possiamo offrirle una piazzola.
+
+{{wiederFrei}}
+
+Saremo lieti di accoglierla un’altra volta.
+
+Cordiali saluti
+{{signatur}}"""),
+    "en": ("{{antwortBetreff}}", """Dear {{gastName}},
+
+Thank you very much for your enquiry. Unfortunately we are fully booked {{ausgebuchtZeitraum}} and cannot offer you a pitch.
+
+{{wiederFrei}}
+
+We would be delighted to welcome you another time.
+
+Kind regards
+{{signatur}}"""),
+}
 _STARTVORLAGEN_JE_TYP = {TYP_ERSTANTWORT: STARTVORLAGEN, TYP_FREI: STARTVORLAGEN_FREI,
-                         TYP_BESTAETIGUNG: STARTVORLAGEN_BESTAETIGUNG}
+                         TYP_BESTAETIGUNG: STARTVORLAGEN_BESTAETIGUNG, TYP_AUSGEBUCHT: STARTVORLAGEN_AUSGEBUCHT}
 
 
 def startvorlagen_ergaenzen(db: Session) -> int:
@@ -307,6 +351,8 @@ PLATZHALTER = {
     "anfrageNummer": "Nummer der Anfrage, z.B. 2026-042 (steht automatisch auch im Betreff)",
     "anzahlungErhalten": "Gutgeschriebene Anzahlung beim Akzeptieren, z.B. CHF 85.40 (sonst leer)",
     "zahlungsbestaetigung": "Satz «Vielen Dank für Ihre Anzahlung von …», leer wenn ohne Anzahlung akzeptiert",
+    "ausgebuchtZeitraum": "Absage: ausgebuchte Nächte der Anfrage, z.B. «vom 12. bis 24. Juli 2027» / «from 12 to 24 July 2027»",
+    "wiederFrei": "Absage: Satz mit dem nächsten freien Zeitraum gleicher Länge (leer, wenn keiner in Sicht)",
     "preisProNacht": "Unverbindlicher Preis pro Nacht mit Aufstellung (Personen, Stellplatz, Umweltabgabe, Taxen; je Saison) – nur mit Modul «Artikel & Preise»",
     "signatur": "Signatur aus den Betriebsangaben",
     "infoblock": "Infoblock aus den Betriebsangaben",
@@ -453,9 +499,49 @@ def antwort_betreff(letzter_betreff: str | None, sprache: str) -> str:
     return f"Re: {rest}"
 
 
+_ZEITRAUM = {"de": ("vom {a} bis {b}", " und "), "fr": ("du {a} au {b}", " et "),
+             "it": ("dal {a} al {b}", " e "), "en": ("from {a} to {b}", " and ")}
+_WIEDER_FREI = {
+    "de": "Frei wären wieder Plätze {zeitraum} ({n} {naechte}). Gerne reservieren wir diesen Zeitraum für Sie.",
+    "fr": "Nous aurions à nouveau des emplacements libres {zeitraum} ({n} {naechte}). Nous les réserverions volontiers pour vous.",
+    "it": "Avremmo di nuovo piazzole libere {zeitraum} ({n} {naechte}). Saremo lieti di riservarle per lei.",
+    "en": "We would have pitches available again {zeitraum} ({n} {naechte}) and would be happy to reserve them for you.",
+}
+_NAECHTE = {"de": ("Nacht", "Nächte"), "fr": ("nuit", "nuits"), "it": ("notte", "notti"), "en": ("night", "nights")}
+
+
+def zeitraum_text(von: date, bis: date, sprache: str) -> str:
+    """«vom 12. bis 24. Juli 2027» – Monat und Jahr nur einmal, wenn gleich."""
+    muster = _ZEITRAUM.get(sprache, _ZEITRAUM["de"])[0]
+    voll_b = datum_text(bis, sprache)
+    if (von.year, von.month) == (bis.year, bis.month):
+        a = f"{von.day}." if sprache == "de" else str(von.day)
+    elif von.year == bis.year:
+        a = datum_text(von, sprache).rsplit(" ", 1)[0]
+    else:
+        a = datum_text(von, sprache)
+    return muster.format(a=a, b=voll_b)
+
+
+def ausgebucht_texte(info: dict | None, sprache: str) -> tuple[str, str]:
+    """(ausgebuchtZeitraum, wiederFrei) für die Absage."""
+    if not info or not info["zeitraeume"]:
+        return "", ""
+    verbinder = _ZEITRAUM.get(sprache, _ZEITRAUM["de"])[1]
+    zeitraum = verbinder.join(zeitraum_text(z["von"], z["bis"], sprache) for z in info["zeitraeume"])
+    frei = ""
+    if info.get("wieder_frei"):
+        w, n = info["wieder_frei"], info["naechte"]
+        eins, mehr = _NAECHTE.get(sprache, _NAECHTE["de"])
+        frei = _WIEDER_FREI.get(sprache, _WIEDER_FREI["de"]).format(
+            zeitraum=zeitraum_text(w["von"], w["bis"], sprache), n=n, naechte=eins if n == 1 else mehr)
+    return zeitraum, frei
+
+
 def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal | None, frist: date | None,
                betrieb: dict[str, str], letzter_betreff: str | None = None,
-               erhalten: Decimal | None = None, preis_pro_nacht: str = "") -> dict[str, str]:
+               erhalten: Decimal | None = None, preis_pro_nacht: str = "",
+               ausgebucht: dict | None = None) -> dict[str, str]:
     naechte = (anfrage.gewuenscht_bis - anfrage.gewuenscht_von).days if anfrage.gewuenscht_von and anfrage.gewuenscht_bis else ""
     return {
         "gastName": anfrage.gast_name,
@@ -475,6 +561,8 @@ def werte_fuer(anfrage: Reservationsanfrage, sprache: str, betrag: Decimal | Non
         "zahlungsbestaetigung": (_DANK_ANZAHLUNG.get(sprache, _DANK_ANZAHLUNG["de"]).format(betrag=betrag_text(erhalten))
                                  if erhalten else ""),
         "preisProNacht": preis_pro_nacht,
+        "ausgebuchtZeitraum": ausgebucht_texte(ausgebucht, sprache)[0],
+        "wiederFrei": ausgebucht_texte(ausgebucht, sprache)[1],
         "signatur": betrieb.get("signatur", ""),
         "infoblock": betrieb.get("infoblock", ""),
     }

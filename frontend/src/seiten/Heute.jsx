@@ -16,7 +16,9 @@ const alterText = (iso) => {
 };
 const anzahl = (n, eins, mehr) => `${n} ${n === 1 ? eins : mehr}`;
 
-export default function Heute() {
+export default function Heute({ module = [] }) {
+  const hestaAktiv = module.some((m) => m.code === "hesta" && m.aktiv);
+  const [hesta, setHesta] = useState(null);
   const heute = heuteIso();
   const [anfragen, setAnfragen] = useState(null);
   const [woche, setWoche] = useState(null);
@@ -30,6 +32,7 @@ export default function Heute() {
       .catch((e) => setFehler(e.message));
   }, [heute]);
   useEffect(laden, [laden]);
+  useEffect(() => { if (hestaAktiv) api.get("/hesta/faellig").then(setHesta).catch(() => {}); }, [hestaAktiv]);
 
   const nichtErschienen = async (id) => {
     try { await api.post(`/reservationsanfragen/${id}/nicht-erschienen`); laden(); } catch (e) { setFehler(e.message); }
@@ -63,6 +66,12 @@ export default function Heute() {
       {fehler && <p className="meldung fehler">{fehler}</p>}
       {!fehler && !anfragen && <p className="leer">Wird geladen …</p>}
 
+      {hesta?.faellig && (
+        <p className="meldung warnung hesta-hinweis">
+          <strong>HESTA-Meldung {hesta.name} fällig.</strong> Ankünfte und Übernachtungen je Nationalität beim BFS erfassen –{" "}
+          <a href="#/hesta">Rapport öffnen</a>.
+        </p>
+      )}
       {nichtAngereist.length > 0 && (
         <section className="heute-karte nicht-angereist" aria-labelledby="h-nicht-angereist">
           <h2 id="h-nicht-angereist">Nicht angereist</h2>

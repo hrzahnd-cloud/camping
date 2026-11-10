@@ -100,7 +100,7 @@ Beherbergungsabgabe für alle Erwachsenen, Kurtaxe nur für kurtaxepflichtige. O
 bleibt der kurze Check-in samt Abreise in der Belegung wie bisher. Preise folgen mit «Artikel &
 Preise».
 
-**Artikel & Preise (Modul, einschaltbar):** Saisons je Jahr – Vorsaison 1.5.–30.6.,
+**Artikel & Preise (Modul, einschaltbar; Pflege unter Einstellungen › Artikel & Preise, nicht im Hauptmenü):** Saisons je Jahr – Vorsaison 1.5.–30.6.,
 Hauptsaison 1.7.–31.8., Nachsaison 1.9.–30.9.; Oktober bis April geschlossen (saisonale Artikel
 ohne Preis). Saisondaten und Preise je Saison zentral auf einer Seite änderbar, ganzjährige
 Preise (Strom, Umweltabgabe, Wassertank, Zwärgli, Spycher, Kleinkinder) gelten für alle Jahre.
@@ -136,13 +136,33 @@ Erwachsene/Kinder/Kleinkinder, Kurtaxe nur Pflichtige, Beherbergungsabgabe, Näc
 Leistung, Einnahmen je Zahlungsart, Offenes – als Excel und PDF. Rechnungen mit Logo (Upload unter
 Betriebsangaben, gespeichert in der Datenbank); MWST je Satz einmal auf dem Total.
 
+**Absage «ausgebucht»:** Sind im gewünschten Zeitraum einer offenen Anfrage Nächte voll belegt
+(alle Stellplätze Zelt/Wohnwagen/Camper, ohne diese Anfrage), zeigt die Reservation den Hinweis und
+den Knopf «Absage: ausgebucht» – auch wenn nur ein Teil der Nächte voll ist. Die Vorlage (4 Sprachen)
+setzt mit `{{ausgebuchtZeitraum}}` die vollen Nächte ein und mit `{{wiederFrei}}` den nächsten freien
+Zeitraum gleicher Länge innerhalb der Saisons (bis 90 Tage voraus). Nach dem Versand: «abgelehnt».
+
+**Gästekarte (Modul, bisher «Feratel», einschaltbar):** Menüpunkt mit dem Zugang zum feratel Web Client
+von Thun-Thunersee Tourismus (webclient4.deskline.net/GRI/de/Login), in dem die Betreiberin Meldeschein und
+PanoramaCard von Hand erfasst. Der Web Client lässt sich nicht einbetten (frame-ancestors 'none') und öffnet sich
+deshalb in einem eigenen Fenster; Zugangsdaten laufen nicht durch das Tool. Bewusst keine Verknüpfung mit
+Reservation/Aufenthalt (Wunsch des Betriebs).
+
+**HESTA (Modul, einschaltbar):** Monatsrapport für die Beherbergungsstatistik des BFS: Ankünfte und
+Übernachtungen je Nationalität des Hauptgastes (statt Wohnsitzland), für alle Personen inkl. Kinder, aus
+den Aufenthalten; alphabetisch nach Land. Rapport erstellen und ablegen (Ablage mit PDF), nach der
+Erfassung beim BFS «als gemeldet markieren»; bis dahin erinnert «Heute» Anfang Monat an die fällige
+Meldung. Mails des BFS (@bfs.admin.ch, monatliche Zugangsdaten) landen beim Postfach-Abruf im Modul HESTA
+statt bei den Reservationen; bis das Postfach angebunden ist, lassen sie sich einfügen. Achtung: ohne
+Anmeldung sind diese Zugangsdaten für alle sichtbar, die die Adresse kennen.
+
 **Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
 Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
 @example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
 `scripts/testdaten_nebensaison.js` erzeugt ab morgen bis Mitte Dezember Nebensaison-Daten mit
 bereits eingecheckten Gästen, Anreisen, Wintercampern und offenen Anfragen.
 
-**Module:** HESTA und Feratel sind im
+**Module:** Alle Module sind im
 Backend vorhanden, aber standardmässig ausgeschaltet. Unter *Einstellungen* lassen sie sich
 ohne Deployment einschalten; ihre eigene Oberfläche folgt schrittweise (bis dahin Verweis auf
 die API).

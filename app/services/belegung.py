@@ -101,3 +101,44 @@ def hohe_belegung(db: Session, anfrage: Reservationsanfrage) -> list[dict]:
     belegt = stellplaetze_je_nacht(db, anfrage.gewuenscht_von, letzte_nacht, ohne_anfrage_id=anfrage.id)
     return [{"datum": d, "belegt": n, "mit_dieser": n + 1, "plaetze": werte["belegung_plaetze"]}
             for d, n in belegt.items() if n + 1 >= werte["belegung_meldung_ab"]]
+
+
+def ausgebucht(db: Session, anfrage: Reservationsanfrage, suche_tage: int = 90) -> dict | None:
+    """
+    Für die Absage «ausgebucht» (mit dem Betrieb festgelegt, November 2026):
+    Nächte der Anfrage, in denen alle Stellplätze belegt sind (ohne diese
+    Anfrage), zusammengefasst zu Zeiträumen, und der nächste Zeitraum gleicher
+    Länge mit freien Plätzen – nur innerhalb der Saisons, falls Saisons erfasst
+    sind. Nur für Zelt, Wohnwagen, Camper; Zwärgli/Spycher nicht.
+    """
+    from app.models.artikel import Saison
+
+    if (anfrage.stellplatz_typ not in STELLPLATZ_TYPEN or not anfrage.gewuenscht_von or not anfrage.gewuenscht_bis
+            or anfrage.gewuenscht_bis <= anfrage.gewuenscht_von):
+        return None
+    plaetze = einstellungen(db)["belegung_plaetze"]
+    von, bis = anfrage.gewuenscht_von, anfrage.gewuenscht_bis
+    n = (bis - von).days
+    ende_suche = bis + timedelta(days=suche_tage)
+    belegt = stellplaetze_je_nacht(db, von, ende_suche, ohne_anfrage_id=anfrage.id)
+    voll = [d for d in sorted(belegt) if d < bis and belegt[d] >= plaetze]
+    if not voll:
+        return {"zeitraeume": [], "naechte_voll": 0, "naechte": n, "wieder_frei": None}
+    zeitraeume = []
+    for d in voll:
+        if zeitraeume and zeitraeume[-1][1] == d:
+            zeitraeume[-1][1] = d + timedelta(days=1)
+        else:
+            zeitraeume.append([d, d + timedelta(days=1)])
+    saisons = [(s.gueltig_ab, s.gueltig_bis) for s in db.query(Saison).all()]
+    offen = (lambda tag: any(a <= tag <= b for a, b in saisons)) if saisons else (lambda tag: True)
+    wieder_frei = None
+    start = von + timedelta(days=1)
+    while start + timedelta(days=n - 1) <= ende_suche:
+        naechte = [start + timedelta(days=i) for i in range(n)]
+        if all(belegt.get(t, 0) < plaetze and offen(t) for t in naechte):
+            wieder_frei = {"von": start, "bis": start + timedelta(days=n)}
+            break
+        start += timedelta(days=1)
+    return {"zeitraeume": [{"von": a, "bis": b} for a, b in zeitraeume], "naechte_voll": len(voll), "naechte": n,
+            "wieder_frei": wieder_frei}

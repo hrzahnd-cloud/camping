@@ -93,6 +93,8 @@ class ReservationsanfrageDetail(ReservationsanfrageOut):
     anzahlung_eingegangen_am: date | None = None
     anzahlung_zahlungsart: str | None = None
     hohe_belegung: list[dict] = []
+    ausgebucht: dict | None = None
+    """Ausgebuchte Nächte im gewünschten Zeitraum und nächster freier Zeitraum (für die Absage)."""
     """Nächte, in denen mit dieser Anfrage die Meldegrenze (z.B. 45 von 50) erreicht wird."""
     buchung_id: uuid.UUID | None = None
     """Aufenthalt, falls angereist."""

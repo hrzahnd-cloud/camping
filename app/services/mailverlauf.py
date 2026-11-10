@@ -306,12 +306,63 @@ def _neue_anfrage(db: Session, mail: Mail, kennung: str) -> Reservationsanfrage 
     return anfrage
 
 
+BFS_DOMAIN = "bfs.admin.ch"
+
+
+def ist_bfs_mail(absender: str, betreff: str) -> bool:
+    """Mails des Bundesamts für Statistik zur HESTA (z.B. monatliche Zugangsdaten)."""
+    absender = (absender or "").lower()
+    return absender.endswith("@" + BFS_DOMAIN) or absender.endswith("." + BFS_DOMAIN)
+
+
+_KOPF = re.compile(r"^(von|from|betreff|subject|datum|date|gesendet|sent|an|to)\s*:\s*(.*)$", re.IGNORECASE)
+
+
+def bfs_mail_speichern(db: Session, text: str, betreff: str | None = None) -> MailNachricht:
+    """Von Hand eingefügte BFS-Mail ablegen; Kopfzeilen (Von:, Betreff:, Datum:) werden erkannt."""
+    from zoneinfo import ZoneInfo
+    jetzt = datetime.now(ZoneInfo("Europe/Zurich"))  # Zeiten ohne Zone im Mailtext sind Schweizer Zeit
+    von, datum, gefunden_betreff = "", jetzt, None
+    for zeile in text.strip().splitlines()[:12]:
+        m = _KOPF.match(zeile.strip())
+        if not m:
+            continue
+        feld, wert = m[1].lower(), m[2].strip()
+        if feld in ("von", "from") and not von:
+            von = wert
+        elif feld in ("betreff", "subject") and not gefunden_betreff:
+            gefunden_betreff = wert
+        elif feld in ("datum", "date", "gesendet", "sent"):
+            datum = _datum_aus_text(wert, jetzt)
+    kennung = "hesta-eingefuegt:" + hashlib.sha256(text.strip().encode()).hexdigest()[:40]
+    vorhanden = db.execute(select(MailNachricht).where(MailNachricht.message_id == kennung)).scalars().first()
+    if vorhanden:
+        return vorhanden
+    nachricht = MailNachricht(richtung="eingang", message_id=kennung, von=(von or "BFS (eingefügt)")[:255],
+                              betreff=(betreff or gefunden_betreff or "HESTA – Zugangsdaten")[:300], text=text.strip(),
+                              datum=datum, weitergeleitet=False, gelesen=True, kategorie="hesta")
+    db.add(nachricht)
+    db.commit()
+    db.refresh(nachricht)
+    return nachricht
+
+
 def verarbeite_mail(db: Session, raw: bytes | EmailMessage, settings: Settings) -> tuple[str, Reservationsanfrage | None]:
     """
     Ordnet eine Mail ein und speichert sie.
-    Ergebnis: neu | nachtrag | antwort | nicht_zugeordnet | duplikat | uebersprungen
+    Ergebnis: neu | nachtrag | antwort | nicht_zugeordnet | duplikat | uebersprungen | hesta
     """
     msg = raw if isinstance(raw, EmailMessage) else message_from_bytes(raw, policy=policy.default)
+    # 0. Mail des BFS (HESTA-Zugangsdaten): ins Modul HESTA, nicht zu den Reservationen.
+    #    Vor dem Filter für automatische Mails, weil das BFS oft von no-reply-Adressen schickt.
+    if ist_bfs_mail(parseaddr(str(msg.get("From") or ""))[1], str(msg.get("Subject") or "")):
+        mail = auspacken(msg)
+        kennung = _kennung(mail)
+        if _schon_vorhanden(db, kennung):
+            return "duplikat", None
+        _speichern(db, mail, kennung, "eingang", None, False).kategorie = "hesta"
+        db.commit()
+        return "hesta", None
     if mi.ist_automatische_mail(msg):
         return "uebersprungen", None
     mail = auspacken(msg)

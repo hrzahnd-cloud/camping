@@ -1,30 +1,45 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import { SPRACHEN, datumVoll } from "../format.js";
+import ArtikelPreise from "./ArtikelPreise.jsx";
 
 const BEREICHE = [
   { code: "vorlagen", name: "Antwortvorlagen" },
   { code: "betrieb", name: "Betriebsangaben" },
   { code: "belegung", name: "Belegung" },
+  { code: "preise", name: "Artikel & Preise", modul: "artikel" },
   { code: "zahlung", name: "Zahlungsarten" },
   { code: "mwst", name: "MWST-Sätze" },
   { code: "postfach", name: "Postfach" },
   { code: "module", name: "Module" },
 ];
 
+const bereichAusLink = () => new URLSearchParams(window.location.hash.split("?")[1] || "").get("bereich");
+
 export default function Einstellungen({ module, onGeaendert }) {
-  const [bereich, setBereich] = useState("vorlagen");
+  // Bereiche eines Moduls (z.B. Artikel & Preise) nur bei eingeschaltetem Modul
+  const sichtbar = BEREICHE.filter((b) => !b.modul || module?.some((m) => m.code === b.modul && m.aktiv));
+  const [bereich, setBereich] = useState(() => {
+    const b = bereichAusLink();
+    return sichtbar.some((x) => x.code === b) ? b : "vorlagen";
+  });
+  useEffect(() => {
+    const uebernehmen = () => { const b = bereichAusLink(); if (b) setBereich(b); };
+    window.addEventListener("hashchange", uebernehmen);
+    return () => window.removeEventListener("hashchange", uebernehmen);
+  }, []);
   return (
-    <div className={`seite${bereich === "vorlagen" ? "" : " schmal"}`}>
+    <div className={`seite${["vorlagen", "preise"].includes(bereich) ? "" : " schmal"}`}>
       <header className="kopf"><h1>Einstellungen</h1></header>
       <div className="ablagen" role="tablist" aria-label="Bereich">
-        {BEREICHE.map((b) => (
+        {sichtbar.map((b) => (
           <button key={b.code} role="tab" aria-selected={bereich === b.code} onClick={() => setBereich(b.code)}>{b.name}</button>
         ))}
       </div>
       {bereich === "vorlagen" && <Vorlagen />}
       {bereich === "betrieb" && <Betrieb />}
       {bereich === "belegung" && <BelegungGrenzen />}
+      {bereich === "preise" && <ArtikelPreise eingebettet />}
       {bereich === "zahlung" && <Zahlungsarten />}
       {bereich === "mwst" && <MwstSaetze />}
       {bereich === "postfach" && <Postfach />}
@@ -43,6 +58,9 @@ const VORLAGENTYPEN = [
   { typ: "bestaetigung_definitiv", name: "Bestätigung definitiv",
     hinweis: "Bestätigung nach dem Akzeptieren, dass die Reservation definitiv gebucht ist. «{{zahlungsbestaetigung}}» dankt für die gutgeschriebene Anzahlung und bleibt leer, wenn ohne Anzahlung akzeptiert wurde.",
     vorschau: "Mit einer erfundenen Anfrage und einer gutgeschriebenen Anzahlung von CHF 118.40." },
+  { typ: "absage_ausgebucht", name: "Absage ausgebucht",
+    hinweis: "Absage, wenn im gewünschten Zeitraum alle Stellplätze belegt sind. «{{ausgebuchtZeitraum}}» nennt die vollen Nächte, «{{wiederFrei}}» den nächsten freien Zeitraum gleicher Länge (leer, wenn keiner in Sicht).",
+    vorschau: "Mit einer erfundenen Anfrage: ausgebucht vom 2. bis 5. Juli 2027, wieder frei vom 26. bis 29. Juli 2027." },
 ];
 
 function Vorlagen() {

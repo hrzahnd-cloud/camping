@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ClipboardPaste, Copy, Mail, MessageSquare, Plus, Search } from "lucide-react";
+import { CalendarX, ClipboardPaste, Copy, Mail, MessageSquare, Plus, Search } from "lucide-react";
 import { api } from "../api.js";
 import { TypMarke } from "../typen.jsx";
 import { HoheBelegung } from "./Belegung.jsx";
 import {
-  QUELLEN, SPRACHEN, STATUS, TYPEN, datumVoll, fehlendText, naechte, personen, personenLang, statusName, zeitraum,
+  QUELLEN, SPRACHEN, STATUS, TYPEN, datumKurz, datumVoll, fehlendText, naechte, personen, personenLang, statusName, zeitraum,
 } from "../format.js";
 
 const ABLAGEN = [
@@ -178,8 +178,9 @@ function Mailtext({ onGespeichert, onAbbrechen }) {
 }
 
 const FREI = "freie_antwort";
+const AUSGEBUCHT = "absage_ausgebucht";
 
-const ANTWORT_TITEL = { [ERST]: "Antwort mit Anzahlung", [FREI]: "Freie Antwort", [BESTAETIGUNG]: "Bestätigung" };
+const ANTWORT_TITEL = { [ERST]: "Antwort mit Anzahlung", [FREI]: "Freie Antwort", [BESTAETIGUNG]: "Bestätigung", [AUSGEBUCHT]: "Absage: ausgebucht" };
 
 function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
   const frei = typ === FREI;
@@ -256,6 +257,7 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
   };
 
   const neuerStatus = typ === BESTAETIGUNG ? null
+    : typ === AUSGEBUCHT ? "Abgelehnt"
     : frei ? (["erstantwort_gesendet", "zahlung_ausstehend", "bezahlt_akzeptiert"].includes(anfrage.status) ? null : "In Abklärung")
       : "Antwort gesendet";
 
@@ -266,6 +268,12 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
         <p className="hinweis">
           Bestätigt dem Gast, dass die Reservation definitiv gebucht ist
           {anfrage.anzahlung_erhalten ? `, mit Dank für die Anzahlung von ${chf(anfrage.anzahlung_erhalten)}` : ""}.
+        </p>
+      )}
+      {typ === AUSGEBUCHT && (
+        <p className="hinweis">
+          Absage mit den ausgebuchten Nächten des gewünschten Zeitraums und, falls in Sicht, dem nächsten freien Zeitraum
+          gleicher Länge. Nach dem Versand gilt die Anfrage als «abgelehnt».
         </p>
       )}
       {frei && (
@@ -280,7 +288,7 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
             {Object.entries(SPRACHEN).map(([c, n]) => <option key={c} value={c}>{n}</option>)}
           </select>
         </label>
-        {!frei && (
+        {typ === ERST && (
           <>
             <label>Anzahlung in CHF
               <input required type="number" min="0.05" step="0.05" inputMode="decimal" value={eingabe.betrag}
@@ -293,7 +301,7 @@ function Antwort({ anfrage, typ, onGesendet, onAbbrechen }) {
         )}
         {(!sofort || !entwurf) && (
           <div className="aktionen breit">
-            {!frei && <button className="knopf haupt" type="submit" disabled={laeuft}>{entwurf ? "Text neu erstellen" : "Text erstellen"}</button>}
+            {typ === ERST && <button className="knopf haupt" type="submit" disabled={laeuft}>{entwurf ? "Text neu erstellen" : "Text erstellen"}</button>}
             <button className="knopf leise" type="button" onClick={onAbbrechen}>Abbrechen</button>
           </div>
         )}
@@ -495,6 +503,7 @@ function Detail({ id, onGeaendert }) {
         <StatusMarke status={anfrage.status} />
       </header>
       {anfrage.hohe_belegung?.length > 0 && <HoheBelegung liste={anfrage.hohe_belegung} />}
+      {anfrage.ausgebucht?.zeitraeume?.length > 0 && <Ausgebucht info={anfrage.ausgebucht} onAbsage={() => setAntworten(AUSGEBUCHT)} />}
       {anfrage.status === "angereist" && (
         <p className="meldung ok">Angereist – der Aufenthalt ist in der <a href={`#/belegung?tag=${anfrage.gewuenscht_von}&eintrag=${anfrage.id}`}>Belegung</a> erfasst.</p>
       )}
@@ -642,5 +651,19 @@ function Formular({ anfrage, neu = false, onGespeichert, onAbbrechen }) {
         <button className="knopf leise" type="button" onClick={onAbbrechen}>Abbrechen</button>
       </div>
     </form>
+  );
+}
+
+function Ausgebucht({ info, onAbsage }) {
+  const alle = info.naechte_voll === info.naechte;
+  const zeitraeume = info.zeitraeume.map((z) => `${datumKurz(z.von)} – ${datumKurz(z.bis)}`).join(", ");
+  return (
+    <div className="meldung fehler ausgebucht">
+      <p>
+        <strong>{alle ? "Ausgebucht" : `${info.naechte_voll} von ${info.naechte} Nächten ausgebucht`}</strong>: {zeitraeume}.
+        {info.wieder_frei ? ` Nächster freier Zeitraum mit ${info.naechte} ${info.naechte === 1 ? "Nacht" : "Nächten"}: ${datumKurz(info.wieder_frei.von)} – ${datumKurz(info.wieder_frei.bis)}.` : " In den nächsten Wochen ist kein gleich langer Zeitraum frei."}
+      </p>
+      <button className="knopf neben" onClick={onAbsage}><CalendarX size={18} aria-hidden="true" />Absage: ausgebucht</button>
+    </div>
   );
 }

@@ -27,11 +27,11 @@ MODULE: tuple[Modul, ...] = (
     Modul("belegung", "Belegung", "Übersicht nach Stellplatz-Typ mit Erwachsenen/Kindern", True, umschaltbar=False),
     Modul("gaeste", "Gäste", "Gästestamm erfassen und bearbeiten", True, umschaltbar=False),
     Modul("buchungen", "Buchungen & Aufenthalte", "Buchungen mit Stellplatz, Check-in/-out", False),
-    Modul("artikel", "Artikel & Preise", "Artikelstamm, Saisonpreise, MWST", False),
+    Modul("artikel", "Artikel & Preise", "Saisonpreise und Artikel – Pflege unter Einstellungen › Artikel & Preise; Beträge in Aufenthalt, Rechnung und Bestätigung", False),
     Modul("rechnungen", "Rechnungen", "Rechnungen inkl. Kurtaxe/Beherbergungsabgabe, PDF", False),
     Modul("auswertungen", "Auswertungen", "Umsatz nach Kunde, Monat, Artikel, Zahlungsart", False),
-    Modul("hesta", "HESTA-Meldung", "Monatsmeldung an das BFS", False),
-    Modul("feratel", "Feratel", "Meldeschein-Vorbereitung für Feratel", False),
+    Modul("hesta", "HESTA", "Monatsrapport Ankünfte und Übernachtungen je Nationalität für das BFS, Ablage und BFS-Zugangsdaten", False),
+    Modul("feratel", "Gästekarte", "Zugang zum Web Client von Thunersee Tourismus (feratel): Meldeschein und PanoramaCard", False),
 )
 MODULE_NACH_CODE = {m.code: m for m in MODULE}
 

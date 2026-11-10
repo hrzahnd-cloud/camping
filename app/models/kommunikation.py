@@ -86,3 +86,5 @@ class MailNachricht(Base, IDMixin, TimestampMixin):
     """True, wenn die Mail weitergeleitet ankam und ausgepackt wurde."""
     gelesen: Mapped[bool] = mapped_column(Boolean, default=True)
     """False bei neuen Mails des Gastes, bis jemand die Anfrage öffnet."""
+    kategorie: Mapped[str | None] = mapped_column(String(20), index=True)
+    """NULL = Reservations-Mail; «hesta» = Mail des BFS mit Zugangsdaten (Modul HESTA)."""

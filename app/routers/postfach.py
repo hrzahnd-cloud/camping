@@ -47,7 +47,7 @@ class Zuordnung(BaseModel):
 def postfach_status(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
     zeit, ergebnis = letzter_abruf(db)
     offen = db.execute(
-        select(MailNachricht).where(MailNachricht.reservationsanfrage_id.is_(None)).order_by(MailNachricht.datum.desc())
+        select(MailNachricht).where(MailNachricht.reservationsanfrage_id.is_(None), MailNachricht.kategorie.is_(None)).order_by(MailNachricht.datum.desc())
     ).scalars().all()
     return PostfachStatus(
         eingerichtet=imap_konfiguriert(settings),

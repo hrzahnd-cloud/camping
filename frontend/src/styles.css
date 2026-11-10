@@ -669,3 +669,27 @@ table.auswertung.klein th { font-weight: 400; }
 .saison-raster-auswertung h3 { margin: 6px 0 6px; font-size: 0.9375rem; }
 .auswertungen .kopf .aktionen { gap: 12px; }
 @media (max-width: 900px) { .saison-raster-auswertung { grid-template-columns: 1fr; } }
+.meldung.ausgebucht { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.meldung.ausgebucht p { margin: 0; flex: 1 1 320px; }
+.preise-seite.eingebettet { display: grid; gap: 12px; }
+.preise-seite.eingebettet > .kopf { align-items: center; }
+
+/* ---------- Gästekarte ---------- */
+.zugang-karte { background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); box-shadow: var(--schatten);
+  padding: 22px 24px; display: grid; gap: 14px; }
+.zugang-karte h2 { margin: 0; font-family: var(--titel); font-size: 1.375rem; }
+.zugang-karte p { margin: 0; max-width: 68ch; }
+.knopf.gross { padding: 12px 20px; font-size: 1.0625rem; }
+.zugang-karte .angaben { grid-template-columns: max-content minmax(0, 1fr); }
+.zugang-karte .angaben dd { overflow-wrap: anywhere; }
+.zugang-karte { min-width: 0; }
+@media (max-width: 720px) { .zugang-karte .angaben { grid-template-columns: 1fr; gap: 2px 0; } .zugang-karte .angaben dd { margin-bottom: 8px; } }
+
+/* ---------- HESTA ---------- */
+.hesta-raster { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 18px; align-items: start; }
+.hesta-raster > .auswertung-karte { margin-top: 0; }
+.hesta .auswertung-karte h2 { margin: 0; font-family: var(--titel); font-size: 1.25rem; }
+.bfs-mail { border: 1px solid var(--linie); border-radius: var(--radius-klein); padding: 10px 12px; display: grid; gap: 6px; margin-top: 8px; }
+.bfs-mail pre { margin: 0; white-space: pre-wrap; font-family: inherit; background: var(--nebel); padding: 10px; border-radius: var(--radius-klein); max-height: 360px; overflow: auto; }
+.meldung.klein { font-size: 0.875rem; }
+@media (max-width: 1000px) { .hesta-raster { grid-template-columns: 1fr; } }

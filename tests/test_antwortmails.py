@@ -182,7 +182,7 @@ def test_antwort_mit_anzahlung_braucht_betrag(client):
 def test_vorlagen_nach_typ(client):
     frei = client.get("/email-vorlagen?typ=freie_antwort").json()
     assert [v["sprache"] for v in frei] == ["de", "fr", "it", "en"]
-    assert {t["typ"] for t in client.get("/email-vorlagen/typen").json()} == {"erstantwort_zahlungsinfo", "freie_antwort", "bestaetigung_definitiv"}
+    assert {t["typ"] for t in client.get("/email-vorlagen/typen").json()} == {"erstantwort_zahlungsinfo", "freie_antwort", "bestaetigung_definitiv", "absage_ausgebucht"}
     v = client.post("/email-vorlagen/vorschau", json={"betreff": frei[0]["betreff"], "koerper": frei[0]["koerper"],
                                                        "sprache": "de", "typ": "freie_antwort"}).json()
     assert v["betreff"] == "Re: Sind Hunde erlaubt? [Anfrage 2027-001]" and v["unbekannte_platzhalter"] == []
