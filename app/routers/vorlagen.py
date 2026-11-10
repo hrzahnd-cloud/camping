@@ -90,7 +90,9 @@ def vorlage_vorschau(daten: VorschauAnfrage, db: Session = Depends(get_db)):
     preis, preis_warnung = richtpreis.fuer_vorlage(db, beispiel, daten.sprache, daten.betreff + daten.koerper)
     werte = am.werte_fuer(beispiel, daten.sprache, Decimal("120.00") if mit_anzahlung else None,
                           date(2027, 3, 31) if mit_anzahlung else None, betrieb, "Sind Hunde erlaubt?",
-                          Decimal("118.40") if daten.typ == am.TYP_BESTAETIGUNG else None, preis)
+                          Decimal("118.40") if daten.typ == am.TYP_BESTAETIGUNG else None, preis,
+                          {"zeitraeume": [{"von": date(2027, 7, 2), "bis": date(2027, 7, 5)}], "naechte": 3,
+                           "wieder_frei": {"von": date(2027, 7, 26), "bis": date(2027, 7, 29)}})
     betreff, u1 = am.ersetze(daten.betreff, werte)
     betreff = am.betreff_mit_nummer(betreff, beispiel.nummer, daten.sprache)
     text, u2 = am.ersetze(daten.koerper, werte)

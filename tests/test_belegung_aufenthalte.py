@@ -269,3 +269,27 @@ def test_checkin_fahrzeuge_vorschlag_und_anpassen(client):
     ww = client.post("/aufenthalte", json={**basis, "stellplatz_typ": "wohnwagen", "anzahl_autos": 0,
                                            "anzahl_motorraeder": 2}).json()["buchung_id"]
     assert arten(ww) == [("motorrad", 2)]
+
+
+def test_absage_ausgebucht_mit_naechstem_freien_zeitraum(client):
+    client.put("/belegung/einstellungen", json={"belegung_plaetze": 2, "belegung_meldung_ab": 2})
+    for i in range(2):
+        _anfrage(client, date(2027, 7, 12), date(2027, 7, 15), name=f"Voll {i}")
+    neu = _anfrage(client, date(2027, 7, 13), date(2027, 7, 17), akzeptieren=False, name="Zu Spät", sprache="de")
+    d = client.get(f"/reservationsanfragen/{neu['id']}").json()
+    assert d["ausgebucht"]["zeitraeume"] == [{"von": "2027-07-13", "bis": "2027-07-15"}]
+    assert d["ausgebucht"]["naechte_voll"] == 2 and d["ausgebucht"]["wieder_frei"] == {"von": "2027-07-15", "bis": "2027-07-19"}
+    e = client.post(f"/reservationsanfragen/{neu['id']}/antwort/vorbereiten", json={"typ": "absage_ausgebucht", "sprache": "de"}).json()
+    assert "Leider sind wir vom 13. bis 15. Juli 2027 ausgebucht" in e["text"]
+    assert "Frei wären wieder Plätze vom 15. bis 19. Juli 2027 (4 Nächte)" in e["text"]
+    en = client.post(f"/reservationsanfragen/{neu['id']}/antwort/vorbereiten", json={"typ": "absage_ausgebucht", "sprache": "en"}).json()
+    assert "fully booked from 13 to 15 July 2027" in en["text"]
+    r = client.post(f"/reservationsanfragen/{neu['id']}/antwort/gesendet", json={"vorlage_id": e["vorlage_id"], "betreff": e["betreff"], "text": e["text"]})
+    assert r.json()["status"] == "abgelehnt" and r.json()["ausgebucht"] is None
+    # nicht ausgebucht: Hinweis; Zwärgli: keine Absage über die Platzzahl
+    frei = _anfrage(client, date(2027, 7, 20), date(2027, 7, 22), akzeptieren=False, name="Hat Platz")
+    w = client.post(f"/reservationsanfragen/{frei['id']}/antwort/vorbereiten", json={"typ": "absage_ausgebucht", "sprache": "de"}).json()
+    assert any("keine Nacht ausgebucht" in x for x in w["warnungen"]) and "{{" not in w["text"]
+    z = _anfrage(client, date(2027, 7, 13), date(2027, 7, 15), typ="zwaergli", akzeptieren=False)
+    assert client.get(f"/reservationsanfragen/{z['id']}").json()["ausgebucht"] is None
+    assert client.post(f"/reservationsanfragen/{z['id']}/antwort/vorbereiten", json={"typ": "absage_ausgebucht", "sprache": "de"}).status_code == 400

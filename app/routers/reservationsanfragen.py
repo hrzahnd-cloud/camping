@@ -139,6 +139,10 @@ def _anzahlungen(db: Session, anfrage_id: uuid.UUID) -> list[Zahlung]:
     ).scalars())
 
 
+_OFFEN_FUER_ABSAGE = {"neu", "unvollstaendig", "geprueft_vollstaendig", "in_abklaerung", "erstantwort_gesendet",
+                      "zahlung_ausstehend"}
+
+
 def _detail(db: Session, anfrage: Reservationsanfrage) -> ReservationsanfrageDetail:
     zahlungen = _anzahlungen(db, anfrage.id)
     letzte = zahlungen[-1] if zahlungen else None
@@ -148,6 +152,8 @@ def _detail(db: Session, anfrage: Reservationsanfrage) -> ReservationsanfrageDet
         "anzahlung_eingegangen_am": letzte.eingegangen_am.date() if letzte and letzte.eingegangen_am else None,
         "anzahlung_zahlungsart": letzte.zahlungsart if letzte else None,
         "hohe_belegung": bel.hohe_belegung(db, anfrage),
+        # Für den Knopf «Absage: ausgebucht» nur bei noch offenen Anfragen
+        "ausgebucht": bel.ausgebucht(db, anfrage) if anfrage.status in _OFFEN_FUER_ABSAGE else None,
         "buchung_id": db.execute(select(Buchung.id).where(Buchung.reservationsanfrage_id == anfrage.id)
                                  .where(Buchung.status != "storniert")).scalars().first(),
     })
@@ -289,7 +295,7 @@ def zahlung_bestaetigen(anfrage_id: uuid.UUID, daten: Akzeptieren | None = None,
 # --- Antwort mit Zahlungsinformationen (Konzept 10.2) ------------------------------
 
 class AntwortVorbereiten(BaseModel):
-    typ: Literal["erstantwort_zahlungsinfo", "freie_antwort", "bestaetigung_definitiv"] = "erstantwort_zahlungsinfo"
+    typ: Literal["erstantwort_zahlungsinfo", "freie_antwort", "bestaetigung_definitiv", "absage_ausgebucht"] = "erstantwort_zahlungsinfo"
     sprache: str = Field(pattern="^(de|fr|it|en)$")
     betrag: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
     """Pflicht bei der Antwort mit Anzahlung, bei der freien Antwort ohne Bedeutung."""
@@ -355,7 +361,13 @@ def antwort_vorbereiten(anfrage_id: uuid.UUID, daten: AntwortVorbereiten, db: Se
     vollständige Anfrage und einen Betrag; die freie Antwort geht immer.
     """
     mit_anzahlung = daten.typ == am.TYP_ERSTANTWORT
-    anfrage = _anfrage(db, anfrage_id) if daten.typ == am.TYP_FREI else _vollstaendige_anfrage(db, anfrage_id)
+    anfrage = (_anfrage(db, anfrage_id) if daten.typ in (am.TYP_FREI, am.TYP_AUSGEBUCHT)
+               else _vollstaendige_anfrage(db, anfrage_id))
+    ausgebucht = None
+    if daten.typ == am.TYP_AUSGEBUCHT:
+        ausgebucht = bel.ausgebucht(db, anfrage)
+        if ausgebucht is None:
+            raise HTTPException(400, "Für die Absage braucht die Anfrage Zeitraum und Stellplatz (Zelt, Wohnwagen, Camper)")
     if mit_anzahlung and daten.betrag is None:
         raise HTTPException(422, "Bitte die Anzahlung angeben")
     if daten.typ == am.TYP_BESTAETIGUNG and anfrage.status != "bezahlt_akzeptiert":
@@ -369,11 +381,13 @@ def antwort_vorbereiten(anfrage_id: uuid.UUID, daten: AntwortVorbereiten, db: Se
     betrieb = am.betriebsangaben(db)
     preis, preis_warnung = richtpreis.fuer_vorlage(db, anfrage, daten.sprache, vorlage.betreff + vorlage.koerper)
     werte = am.werte_fuer(anfrage, daten.sprache, daten.betrag if mit_anzahlung else None,
-                          daten.zahlungsfrist, betrieb, am.letzter_gast_betreff(db, anfrage), erhalten, preis)
+                          daten.zahlungsfrist, betrieb, am.letzter_gast_betreff(db, anfrage), erhalten, preis, ausgebucht)
     betreff, u1 = am.ersetze(vorlage.betreff, werte)
     betreff = am.betreff_mit_nummer(betreff, anfrage.nummer, daten.sprache)
     text, u2 = am.ersetze(vorlage.koerper, werte)
     warnungen = am.warnungen_betrieb(betrieb, daten.typ) + ([preis_warnung] if preis_warnung else [])
+    if ausgebucht is not None and not ausgebucht["zeitraeume"]:
+        warnungen.append("Im gewünschten Zeitraum ist keine Nacht ausgebucht – bitte prüfen, ob die Absage stimmt.")
     if u1 or u2:
         warnungen.append("Unbekannte Platzhalter in der Vorlage: " + ", ".join(sorted(set(u1 + u2))))
     position = None
@@ -397,7 +411,8 @@ def antwort_als_gesendet_markieren(anfrage_id: uuid.UUID, daten: AntwortGesendet
     if not vorlage:
         raise HTTPException(400, "Vorlage nicht gefunden")
     mit_anzahlung = vorlage.typ == am.TYP_ERSTANTWORT
-    anfrage = _anfrage(db, anfrage_id) if vorlage.typ == am.TYP_FREI else _vollstaendige_anfrage(db, anfrage_id)
+    anfrage = (_anfrage(db, anfrage_id) if vorlage.typ in (am.TYP_FREI, am.TYP_AUSGEBUCHT)
+               else _vollstaendige_anfrage(db, anfrage_id))
     if mit_anzahlung and daten.betrag:
         anfrage.anzahlung_verlangt = daten.betrag
     db.add(EmailVersand(
@@ -406,7 +421,10 @@ def antwort_als_gesendet_markieren(anfrage_id: uuid.UUID, daten: AntwortGesendet
         betreff_final=daten.betreff, koerper_final=daten.text, status="gesendet",
         gesendet_am=datetime.now(timezone.utc),
     ))
-    if vorlage.typ != am.TYP_BESTAETIGUNG:
+    if vorlage.typ == am.TYP_AUSGEBUCHT:
+        if anfrage.status not in ("bezahlt_akzeptiert", "angereist"):
+            anfrage.status = "abgelehnt"  # Absage gesendet
+    elif vorlage.typ != am.TYP_BESTAETIGUNG:
         am.status_nach_antwort(anfrage, mit_anzahlung)
     db.commit()
     db.refresh(anfrage)

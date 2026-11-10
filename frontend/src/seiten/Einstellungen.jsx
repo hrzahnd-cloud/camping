@@ -43,6 +43,9 @@ const VORLAGENTYPEN = [
   { typ: "bestaetigung_definitiv", name: "Bestätigung definitiv",
     hinweis: "Bestätigung nach dem Akzeptieren, dass die Reservation definitiv gebucht ist. «{{zahlungsbestaetigung}}» dankt für die gutgeschriebene Anzahlung und bleibt leer, wenn ohne Anzahlung akzeptiert wurde.",
     vorschau: "Mit einer erfundenen Anfrage und einer gutgeschriebenen Anzahlung von CHF 118.40." },
+  { typ: "absage_ausgebucht", name: "Absage ausgebucht",
+    hinweis: "Absage, wenn im gewünschten Zeitraum alle Stellplätze belegt sind. «{{ausgebuchtZeitraum}}» nennt die vollen Nächte, «{{wiederFrei}}» den nächsten freien Zeitraum gleicher Länge (leer, wenn keiner in Sicht).",
+    vorschau: "Mit einer erfundenen Anfrage: ausgebucht vom 2. bis 5. Juli 2027, wieder frei vom 26. bis 29. Juli 2027." },
 ];
 
 function Vorlagen() {

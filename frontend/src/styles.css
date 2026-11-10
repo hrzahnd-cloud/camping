@@ -669,3 +669,5 @@ table.auswertung.klein th { font-weight: 400; }
 .saison-raster-auswertung h3 { margin: 6px 0 6px; font-size: 0.9375rem; }
 .auswertungen .kopf .aktionen { gap: 12px; }
 @media (max-width: 900px) { .saison-raster-auswertung { grid-template-columns: 1fr; } }
+.meldung.ausgebucht { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.meldung.ausgebucht p { margin: 0; flex: 1 1 320px; }

@@ -136,6 +136,12 @@ Erwachsene/Kinder/Kleinkinder, Kurtaxe nur Pflichtige, Beherbergungsabgabe, Näc
 Leistung, Einnahmen je Zahlungsart, Offenes – als Excel und PDF. Rechnungen mit Logo (Upload unter
 Betriebsangaben, gespeichert in der Datenbank); MWST je Satz einmal auf dem Total.
 
+**Absage «ausgebucht»:** Sind im gewünschten Zeitraum einer offenen Anfrage Nächte voll belegt
+(alle Stellplätze Zelt/Wohnwagen/Camper, ohne diese Anfrage), zeigt die Reservation den Hinweis und
+den Knopf «Absage: ausgebucht» – auch wenn nur ein Teil der Nächte voll ist. Die Vorlage (4 Sprachen)
+setzt mit `{{ausgebuchtZeitraum}}` die vollen Nächte ein und mit `{{wiederFrei}}` den nächsten freien
+Zeitraum gleicher Länge innerhalb der Saisons (bis 90 Tage voraus). Nach dem Versand: «abgelehnt».
+
 **Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
 Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
 @example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
