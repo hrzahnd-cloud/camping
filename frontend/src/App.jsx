@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  BarChart3, BedDouble, CalendarRange, FileText, Inbox, Map, Send, Settings, Sun, Users,
+  BarChart3, BedDouble, CalendarRange, FileText, IdCard, Inbox, Send, Settings, Sun, Users,
 } from "lucide-react";
 import { api } from "./api.js";
 import Heute from "./seiten/Heute.jsx";
@@ -12,6 +12,7 @@ import Modulseite from "./seiten/Modulseite.jsx";
 import Aufenthalte from "./seiten/Aufenthalte.jsx";
 import Rechnungen from "./seiten/Rechnungen.jsx";
 import Auswertungen from "./seiten/Auswertungen.jsx";
+import Gaestekarte from "./seiten/Gaestekarte.jsx";
 
 // Reihenfolge = Reihenfolge im Menü. Module, die unter Einstellungen
 // ausgeschaltet sind, erscheinen nicht.
@@ -24,7 +25,7 @@ const SEITEN = [
   { code: "rechnungen", pfad: "rechnungen", name: "Rechnungen", icon: FileText, Komponente: Rechnungen },
   { code: "auswertungen", pfad: "auswertungen", name: "Auswertungen", icon: BarChart3, Komponente: Auswertungen },
   { code: "hesta", pfad: "hesta", name: "HESTA", icon: Send },
-  { code: "feratel", pfad: "feratel", name: "Feratel", icon: Map },
+  { code: "feratel", pfad: "gaestekarte", name: "Gästekarte", icon: IdCard, Komponente: Gaestekarte },
 ];
 
 const aktuellerPfad = () => window.location.hash.replace(/^#\/?/, "").split("?")[0] || "heute";
@@ -36,7 +37,10 @@ export default function App() {
 
   useEffect(() => {
     // «Artikel & Preise» ist neu unter Einstellungen (alter Link #/artikel leitet weiter)
-    const umleiten = () => { if (aktuellerPfad() === "artikel") window.location.replace("#/einstellungen?bereich=preise"); };
+    const umleiten = () => {
+      if (aktuellerPfad() === "artikel") window.location.replace("#/einstellungen?bereich=preise");
+      if (aktuellerPfad() === "feratel") window.location.replace("#/gaestekarte");
+    };
     umleiten();
     const weiter = () => { umleiten(); setPfad(aktuellerPfad()); };
     window.addEventListener("hashchange", weiter);

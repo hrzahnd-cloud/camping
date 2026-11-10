@@ -673,3 +673,14 @@ table.auswertung.klein th { font-weight: 400; }
 .meldung.ausgebucht p { margin: 0; flex: 1 1 320px; }
 .preise-seite.eingebettet { display: grid; gap: 12px; }
 .preise-seite.eingebettet > .kopf { align-items: center; }
+
+/* ---------- Gästekarte ---------- */
+.zugang-karte { background: var(--papier); border: 1px solid var(--linie); border-radius: var(--radius); box-shadow: var(--schatten);
+  padding: 22px 24px; display: grid; gap: 14px; }
+.zugang-karte h2 { margin: 0; font-family: var(--titel); font-size: 1.375rem; }
+.zugang-karte p { margin: 0; max-width: 68ch; }
+.knopf.gross { padding: 12px 20px; font-size: 1.0625rem; }
+.zugang-karte .angaben { grid-template-columns: max-content minmax(0, 1fr); }
+.zugang-karte .angaben dd { overflow-wrap: anywhere; }
+.zugang-karte { min-width: 0; }
+@media (max-width: 720px) { .zugang-karte .angaben { grid-template-columns: 1fr; gap: 2px 0; } .zugang-karte .angaben dd { margin-bottom: 8px; } }

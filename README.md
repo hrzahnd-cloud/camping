@@ -142,13 +142,19 @@ den Knopf «Absage: ausgebucht» – auch wenn nur ein Teil der Nächte voll ist
 setzt mit `{{ausgebuchtZeitraum}}` die vollen Nächte ein und mit `{{wiederFrei}}` den nächsten freien
 Zeitraum gleicher Länge innerhalb der Saisons (bis 90 Tage voraus). Nach dem Versand: «abgelehnt».
 
+**Gästekarte (Modul, bisher «Feratel», einschaltbar):** Menüpunkt mit dem Zugang zum feratel Web Client
+von Thun-Thunersee Tourismus (webclient4.deskline.net/GRI/de/Login), in dem die Betreiberin Meldeschein und
+PanoramaCard von Hand erfasst. Der Web Client lässt sich nicht einbetten (frame-ancestors 'none') und öffnet sich
+deshalb in einem eigenen Fenster; Zugangsdaten laufen nicht durch das Tool. Bewusst keine Verknüpfung mit
+Reservation/Aufenthalt (Wunsch des Betriebs).
+
 **Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
 Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
 @example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
 `scripts/testdaten_nebensaison.js` erzeugt ab morgen bis Mitte Dezember Nebensaison-Daten mit
 bereits eingecheckten Gästen, Anreisen, Wintercampern und offenen Anfragen.
 
-**Module:** HESTA und Feratel sind im
+**Module:** HESTA ist im
 Backend vorhanden, aber standardmässig ausgeschaltet. Unter *Einstellungen* lassen sie sich
 ohne Deployment einschalten; ihre eigene Oberfläche folgt schrittweise (bis dahin Verweis auf
 die API).

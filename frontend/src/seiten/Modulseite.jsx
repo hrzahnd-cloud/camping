@@ -2,7 +2,7 @@
 // aber erst in einer späteren Phase gebaut wird.
 const API_BEREICH = {
   buchungen: "Buchungen", artikel: "Artikel & Preise", rechnungen: "Rechnungen",
-  auswertungen: "Auswertungen", hesta: "HESTA", feratel: "Feratel",
+  auswertungen: "Auswertungen", hesta: "HESTA",
 };
 
 export default function Modulseite({ modul }) {

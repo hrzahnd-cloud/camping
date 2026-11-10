@@ -31,7 +31,7 @@ MODULE: tuple[Modul, ...] = (
     Modul("rechnungen", "Rechnungen", "Rechnungen inkl. Kurtaxe/Beherbergungsabgabe, PDF", False),
     Modul("auswertungen", "Auswertungen", "Umsatz nach Kunde, Monat, Artikel, Zahlungsart", False),
     Modul("hesta", "HESTA-Meldung", "Monatsmeldung an das BFS", False),
-    Modul("feratel", "Feratel", "Meldeschein-Vorbereitung für Feratel", False),
+    Modul("feratel", "Gästekarte", "Zugang zum Web Client von Thunersee Tourismus (feratel): Meldeschein und PanoramaCard", False),
 )
 MODULE_NACH_CODE = {m.code: m for m in MODULE}
 
