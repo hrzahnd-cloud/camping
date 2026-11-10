@@ -148,13 +148,21 @@ PanoramaCard von Hand erfasst. Der Web Client lässt sich nicht einbetten (frame
 deshalb in einem eigenen Fenster; Zugangsdaten laufen nicht durch das Tool. Bewusst keine Verknüpfung mit
 Reservation/Aufenthalt (Wunsch des Betriebs).
 
+**HESTA (Modul, einschaltbar):** Monatsrapport für die Beherbergungsstatistik des BFS: Ankünfte und
+Übernachtungen je Nationalität des Hauptgastes (statt Wohnsitzland), für alle Personen inkl. Kinder, aus
+den Aufenthalten; alphabetisch nach Land. Rapport erstellen und ablegen (Ablage mit PDF), nach der
+Erfassung beim BFS «als gemeldet markieren»; bis dahin erinnert «Heute» Anfang Monat an die fällige
+Meldung. Mails des BFS (@bfs.admin.ch, monatliche Zugangsdaten) landen beim Postfach-Abruf im Modul HESTA
+statt bei den Reservationen; bis das Postfach angebunden ist, lassen sie sich einfügen. Achtung: ohne
+Anmeldung sind diese Zugangsdaten für alle sichtbar, die die Adresse kennen.
+
 **Testdaten:** `scripts/testdaten_juli2027.js` erzeugt über die API erfundene Reservationen für
 Juli 2027 bis zur Vollbelegung samt Antworten, Zahlungen und Bestätigungen (Adressen
 @example.com/.org/.net) und entfernt sie mit `--loeschen` wieder.
 `scripts/testdaten_nebensaison.js` erzeugt ab morgen bis Mitte Dezember Nebensaison-Daten mit
 bereits eingecheckten Gästen, Anreisen, Wintercampern und offenen Anfragen.
 
-**Module:** HESTA ist im
+**Module:** Alle Module sind im
 Backend vorhanden, aber standardmässig ausgeschaltet. Unter *Einstellungen* lassen sie sich
 ohne Deployment einschalten; ihre eigene Oberfläche folgt schrittweise (bis dahin Verweis auf
 die API).

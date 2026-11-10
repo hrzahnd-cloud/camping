@@ -13,6 +13,7 @@ import Aufenthalte from "./seiten/Aufenthalte.jsx";
 import Rechnungen from "./seiten/Rechnungen.jsx";
 import Auswertungen from "./seiten/Auswertungen.jsx";
 import Gaestekarte from "./seiten/Gaestekarte.jsx";
+import Hesta from "./seiten/Hesta.jsx";
 
 // Reihenfolge = Reihenfolge im Menü. Module, die unter Einstellungen
 // ausgeschaltet sind, erscheinen nicht.
@@ -24,7 +25,7 @@ const SEITEN = [
   { code: "buchungen", pfad: "aufenthalte", name: "Aufenthalte", icon: BedDouble, Komponente: Aufenthalte },
   { code: "rechnungen", pfad: "rechnungen", name: "Rechnungen", icon: FileText, Komponente: Rechnungen },
   { code: "auswertungen", pfad: "auswertungen", name: "Auswertungen", icon: BarChart3, Komponente: Auswertungen },
-  { code: "hesta", pfad: "hesta", name: "HESTA", icon: Send },
+  { code: "hesta", pfad: "hesta", name: "HESTA", icon: Send, Komponente: Hesta },
   { code: "feratel", pfad: "gaestekarte", name: "Gästekarte", icon: IdCard, Komponente: Gaestekarte },
 ];
 

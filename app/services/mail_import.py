@@ -101,6 +101,8 @@ class ImportErgebnis:
     nicht_zugeordnet: int = 0
     duplikate: int = 0
     uebersprungen: int = 0
+    hesta: int = 0
+    """Mails des BFS (HESTA-Zugangsdaten), im Modul HESTA abgelegt"""
     fehler: list[str] = field(default_factory=list)
 
 
@@ -477,7 +479,7 @@ def importiere_aus_postfach(db: Session, settings: Settings, max_mails: int = 50
                     continue
                 _, art = importiere_mail(db, teile[0][1], settings)
                 feld = {"neu": "neu", "nachtrag": "nachtraege", "antwort": "antworten",
-                        "nicht_zugeordnet": "nicht_zugeordnet", "duplikat": "duplikate"}.get(art, "uebersprungen")
+                        "nicht_zugeordnet": "nicht_zugeordnet", "duplikat": "duplikate", "hesta": "hesta"}.get(art, "uebersprungen")
                 setattr(ergebnis, feld, getattr(ergebnis, feld) + 1)
                 verbindung.store(nummer, "+FLAGS", "\\Seen")
             except Exception as exc:  # eine defekte Mail darf den Rest nicht blockieren

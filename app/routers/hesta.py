@@ -20,6 +20,7 @@ from app.config import Settings, get_settings
 from app.database import get_db
 from app.models.campingplatz import Campingplatz
 from app.models.meldungen import HestaMeldung, HestaMeldungPosition
+from app.services import laender
 from app.services.hesta import HestaPosition, aggregiere_hesta_monat
 from app.services.hesta_export import (
     HestaBericht,
@@ -44,17 +45,22 @@ class MeldungEingabe(BaseModel):
     bemerkung: str | None = None
 
 
+def _absender(db: Session) -> str:
+    from app.services import antwortmail as am
+    return next((z.strip() for z in am.betriebsangaben(db).get("rechnung_absender", "").split("\n") if z.strip()), "")
+
+
 def _bericht(db: Session, jahr: int, monat: int, meldung: HestaMeldung | None = None) -> HestaBericht:
     betrieb = db.execute(select(Campingplatz)).scalars().first()
     if meldung is not None:
         positionen = [
             HestaPosition(p.land, p.anzahl_personen, p.anzahl_uebernachtungen)
-            for p in sorted(meldung.positionen, key=lambda p: p.land)
+            for p in sorted(meldung.positionen, key=lambda p: laender.sortierschluessel(p.land))
         ]
     else:
         positionen = aggregiere_hesta_monat(db, jahr, monat)
     return HestaBericht(
-        betrieb_name=betrieb.name if betrieb else "Campingplatz",
+        betrieb_name=betrieb.name if betrieb else (_absender(db) or "Campingplatz"),
         jahr=jahr,
         monat=monat,
         positionen=positionen,
@@ -200,3 +206,54 @@ def meldung_per_mail_versenden(
     meldung.eingereicht_am = datetime.now(timezone.utc)
     db.commit()
     return _meldung_zu_dict(meldung)
+
+
+
+# --- Fälligkeit und BFS-Mails ---------------------------------------------------------
+
+def _vormonat(heute: date) -> tuple[int, int]:
+    return (heute.year - 1, 12) if heute.month == 1 else (heute.year, heute.month - 1)
+
+
+@router.get("/faellig")
+def faellige_meldung(db: Session = Depends(get_db)):
+    """Meldung des Vormonats (fällig Anfang Monat), solange sie nicht als eingereicht markiert ist."""
+    from app.services.hesta_export import MONATE
+    jahr, monat = _vormonat(date.today())
+    m = db.execute(select(HestaMeldung).where(HestaMeldung.jahr == jahr, HestaMeldung.monat == monat)).scalars().first()
+    return {"jahr": jahr, "monat": monat, "name": f"{MONATE[monat - 1]} {jahr}",
+            "status": m.status if m else "offen", "meldung_id": str(m.id) if m else None,
+            "faellig": not (m and m.status == "eingereicht")}
+
+
+class ZugangsMailEingabe(BaseModel):
+    text: str = Field(min_length=1, max_length=50000)
+    """Mailtext, wie aus dem Mailprogramm kopiert (mit oder ohne Kopfzeilen)."""
+    betreff: str | None = Field(default=None, max_length=300)
+
+
+@router.get("/zugangsmails")
+def zugangsmails(db: Session = Depends(get_db)):
+    """Mails des BFS (Zugangsdaten zur HESTA-Erfassung), neueste zuerst."""
+    from app.models.kommunikation import MailNachricht
+    mails = db.execute(select(MailNachricht).where(MailNachricht.kategorie == "hesta")
+                       .order_by(MailNachricht.datum.desc()).limit(24)).scalars()
+    return [{"id": str(m.id), "datum": m.datum, "von": m.von, "betreff": m.betreff, "text": m.text} for m in mails]
+
+
+@router.post("/zugangsmails", status_code=201)
+def zugangsmail_einfuegen(daten: ZugangsMailEingabe, db: Session = Depends(get_db)):
+    """BFS-Mail von Hand einfügen (bis das Postfach angebunden ist)."""
+    from app.services.mailverlauf import bfs_mail_speichern
+    m = bfs_mail_speichern(db, daten.text, daten.betreff)
+    return {"id": str(m.id), "datum": m.datum, "von": m.von, "betreff": m.betreff, "text": m.text}
+
+
+@router.delete("/zugangsmails/{mail_id}", status_code=204)
+def zugangsmail_loeschen(mail_id: uuid.UUID, db: Session = Depends(get_db)):
+    from app.models.kommunikation import MailNachricht
+    m = db.get(MailNachricht, mail_id)
+    if not m or m.kategorie != "hesta":
+        raise HTTPException(404, "Mail nicht gefunden")
+    db.delete(m)
+    db.commit()

@@ -22,6 +22,7 @@ from reportlab.lib.colors import HexColor, white
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
+from app.services import laender
 from app.services.hesta import HestaPosition
 
 DARK = HexColor("#1f2d24")
@@ -33,15 +34,6 @@ MONATE = [
     "Januar", "Februar", "März", "April", "Mai", "Juni",
     "Juli", "August", "September", "Oktober", "November", "Dezember",
 ]
-
-# Zeilen des internen HESTA-Formulars (docs/hesta_monatsmeldung.pdf); alles
-# andere wird unter "Übrige Länder" zusammengefasst. Das CSV enthält jedes Land einzeln.
-FORMULAR_LAENDER = [
-    ("CH", "Schweiz"), ("DE", "Deutschland"), ("FR", "Frankreich"), ("NL", "Niederlande"),
-    ("BE", "Belgien"), ("GB", "Vereinigtes Königreich"), ("AT", "Österreich"),
-    ("IT", "Italien"), ("US", "USA"),
-]
-
 
 @dataclass
 class HestaBericht:
@@ -79,7 +71,7 @@ class HestaBericht:
         if self.anzahl_zimmer is None or self.anzahl_betten is None:
             w.append("Anzahl Zimmer/Betten fehlt (mit dem BFS klären, was für Camping zu melden ist).")
         if not self.positionen:
-            w.append("Keine abgerechneten Aufenthalte im Meldemonat.")
+            w.append("Keine Aufenthalte im Meldemonat.")
         return w
 
 
@@ -96,20 +88,6 @@ def schliessungstage_aus_text(text: str | None) -> list[tuple[date, date]]:
             von, bis = zeile.strip().split("/", 1)
             ergebnis.append((date.fromisoformat(von), date.fromisoformat(bis)))
     return ergebnis
-
-
-def _formular_zeilen(positionen: list[HestaPosition]) -> list[tuple[str, int, int]]:
-    nach_land = {p.land: p for p in positionen}
-    zeilen = []
-    for code, name in FORMULAR_LAENDER:
-        p = nach_land.pop(code, None)
-        zeilen.append((name, p.anzahl_personen if p else 0, p.anzahl_uebernachtungen if p else 0))
-    zeilen.append((
-        "Übrige Länder",
-        sum(p.anzahl_personen for p in nach_land.values()),
-        sum(p.anzahl_uebernachtungen for p in nach_land.values()),
-    ))
-    return zeilen
 
 
 def erzeuge_hesta_pdf(bericht: HestaBericht) -> bytes:
@@ -150,18 +128,25 @@ def erzeuge_hesta_pdf(bericht: HestaBericht) -> bytes:
 
     c.setFont("Helvetica-Bold", 9)
     c.setFillColor(DARK)
-    c.drawString(rand, y, "ANKÜNFTE UND LOGIERNÄCHTE NACH HERKUNFTSLAND")
+    c.drawString(rand, y, "ANKÜNFTE UND ÜBERNACHTUNGEN NACH NATIONALITÄT (ALPHABETISCH)")
     y -= 10
     c.setFillColor(ACCENT)
     c.rect(rand, y - 18, breite - 2 * rand, 18, fill=1, stroke=0)
     c.setFillColor(white)
     c.setFont("Helvetica-Bold", 9)
     c.drawString(rand + 8, y - 13, "Land")
-    c.drawRightString(breite - rand - 150, y - 13, "Anzahl Personen")
-    c.drawRightString(breite - rand - 8, y - 13, "Anzahl Übernachtungen")
+    c.drawRightString(breite - rand - 150, y - 13, "Ankünfte")
+    c.drawRightString(breite - rand - 8, y - 13, "Übernachtungen")
     y -= 18
 
-    for i, (name, personen, naechte) in enumerate(_formular_zeilen(bericht.positionen)):
+    zeilen = [(p.name, p.anzahl_personen, p.anzahl_uebernachtungen)
+              for p in sorted(bericht.positionen, key=lambda p: laender.sortierschluessel(p.land))]
+    if not zeilen:
+        zeilen = [("Keine Aufenthalte im Meldemonat", 0, 0)]
+    for i, (name, personen, naechte) in enumerate(zeilen):
+        if y < 120:
+            c.showPage()
+            y = hoehe - 60
         if i % 2 == 0:
             c.setFillColor(ZEBRA)
             c.rect(rand, y - 20, breite - 2 * rand, 20, fill=1, stroke=0)
@@ -209,8 +194,8 @@ def erzeuge_hesta_pdf(bericht: HestaBericht) -> bytes:
     c.drawString(300, 108, "Unterschrift")
 
     c.setFont("Helvetica-Oblique", 7.5)
-    c.drawString(rand, 50, "Automatisch aus den abgerechneten Aufenthalten erzeugt (Campingverwaltung). "
-                           "Ersetzt nicht die offizielle Erhebung des BFS.")
+    c.drawString(rand, 50, "Erzeugt aus den Aufenthalten (Nationalität des Hauptgastes, alle Personen inkl. Kinder). "
+                           "Erfassung beim BFS von Hand.")
     c.showPage()
     c.save()
     return puffer.getvalue()
@@ -256,7 +241,7 @@ def bericht_als_dict(bericht: HestaBericht) -> dict:
         "jahr": bericht.jahr,
         "monat": bericht.monat,
         "positionen": [
-            {"land": p.land, "anzahl_personen": p.anzahl_personen,
+            {"land": p.land, "name": p.name, "anzahl_personen": p.anzahl_personen,
              "anzahl_uebernachtungen": p.anzahl_uebernachtungen}
             for p in bericht.positionen
         ],

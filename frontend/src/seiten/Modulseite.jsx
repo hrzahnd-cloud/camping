@@ -2,7 +2,7 @@
 // aber erst in einer späteren Phase gebaut wird.
 const API_BEREICH = {
   buchungen: "Buchungen", artikel: "Artikel & Preise", rechnungen: "Rechnungen",
-  auswertungen: "Auswertungen", hesta: "HESTA",
+  auswertungen: "Auswertungen",
 };
 
 export default function Modulseite({ modul }) {

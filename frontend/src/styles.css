@@ -684,3 +684,12 @@ table.auswertung.klein th { font-weight: 400; }
 .zugang-karte .angaben dd { overflow-wrap: anywhere; }
 .zugang-karte { min-width: 0; }
 @media (max-width: 720px) { .zugang-karte .angaben { grid-template-columns: 1fr; gap: 2px 0; } .zugang-karte .angaben dd { margin-bottom: 8px; } }
+
+/* ---------- HESTA ---------- */
+.hesta-raster { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 18px; align-items: start; }
+.hesta-raster > .auswertung-karte { margin-top: 0; }
+.hesta .auswertung-karte h2 { margin: 0; font-family: var(--titel); font-size: 1.25rem; }
+.bfs-mail { border: 1px solid var(--linie); border-radius: var(--radius-klein); padding: 10px 12px; display: grid; gap: 6px; margin-top: 8px; }
+.bfs-mail pre { margin: 0; white-space: pre-wrap; font-family: inherit; background: var(--nebel); padding: 10px; border-radius: var(--radius-klein); max-height: 360px; overflow: auto; }
+.meldung.klein { font-size: 0.875rem; }
+@media (max-width: 1000px) { .hesta-raster { grid-template-columns: 1fr; } }
