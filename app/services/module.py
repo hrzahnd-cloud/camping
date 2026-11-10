@@ -27,7 +27,7 @@ MODULE: tuple[Modul, ...] = (
     Modul("belegung", "Belegung", "Übersicht nach Stellplatz-Typ mit Erwachsenen/Kindern", True, umschaltbar=False),
     Modul("gaeste", "Gäste", "Gästestamm erfassen und bearbeiten", True, umschaltbar=False),
     Modul("buchungen", "Buchungen & Aufenthalte", "Buchungen mit Stellplatz, Check-in/-out", False),
-    Modul("artikel", "Artikel & Preise", "Artikelstamm, Saisonpreise, MWST", False),
+    Modul("artikel", "Artikel & Preise", "Saisonpreise und Artikel – Pflege unter Einstellungen › Artikel & Preise; Beträge in Aufenthalt, Rechnung und Bestätigung", False),
     Modul("rechnungen", "Rechnungen", "Rechnungen inkl. Kurtaxe/Beherbergungsabgabe, PDF", False),
     Modul("auswertungen", "Auswertungen", "Umsatz nach Kunde, Monat, Artikel, Zahlungsart", False),
     Modul("hesta", "HESTA-Meldung", "Monatsmeldung an das BFS", False),

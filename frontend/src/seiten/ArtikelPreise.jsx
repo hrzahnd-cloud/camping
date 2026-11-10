@@ -11,7 +11,7 @@ const SAISONS = [
 ];
 const betragText = (x) => (x === null || x === undefined || x === "" ? "" : Number(x).toFixed(2));
 
-export default function ArtikelPreise() {
+export default function ArtikelPreise({ eingebettet = false }) {
   const [jahr, setJahr] = useState(null);
   const [liste, setListe] = useState(null);
   const [entwurf, setEntwurf] = useState({ saisons: {}, preise: {} });
@@ -93,9 +93,10 @@ export default function ArtikelPreise() {
   const ganzjaehrig = useMemo(() => (liste?.artikel || []).filter((a) => !a.saisonal), [liste]);
 
   return (
-    <div className="seite preise-seite">
+    <div className={eingebettet ? "preise-seite eingebettet" : "seite preise-seite"}>
       <header className="kopf">
-        <h1>Artikel &amp; Preise</h1>
+        {eingebettet ? <p className="hinweis">Saisons und Preise je Jahr. Die Beträge erscheinen in Aufenthalten, Rechnungen und
+          in der Bestätigungsmail, solange das Modul «Artikel &amp; Preise» eingeschaltet ist.</p> : <h1>Artikel &amp; Preise</h1>}
         <div className="aktionen">
           {liste && <button className="knopf neben" disabled={laeuft} onClick={uebernehmen}>
             <CopyPlus size={18} aria-hidden="true" />{naechstesJahr} aus {naechstesJahr - 1} übernehmen</button>}

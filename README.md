@@ -100,7 +100,7 @@ Beherbergungsabgabe für alle Erwachsenen, Kurtaxe nur für kurtaxepflichtige. O
 bleibt der kurze Check-in samt Abreise in der Belegung wie bisher. Preise folgen mit «Artikel &
 Preise».
 
-**Artikel & Preise (Modul, einschaltbar):** Saisons je Jahr – Vorsaison 1.5.–30.6.,
+**Artikel & Preise (Modul, einschaltbar; Pflege unter Einstellungen › Artikel & Preise, nicht im Hauptmenü):** Saisons je Jahr – Vorsaison 1.5.–30.6.,
 Hauptsaison 1.7.–31.8., Nachsaison 1.9.–30.9.; Oktober bis April geschlossen (saisonale Artikel
 ohne Preis). Saisondaten und Preise je Saison zentral auf einer Seite änderbar, ganzjährige
 Preise (Strom, Umweltabgabe, Wassertank, Zwärgli, Spycher, Kleinkinder) gelten für alle Jahre.
