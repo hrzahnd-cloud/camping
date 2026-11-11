@@ -23,12 +23,15 @@ export default function Heute({ module = [] }) {
   const [anfragen, setAnfragen] = useState(null);
   const [woche, setWoche] = useState(null);
   const [nichtAngereist, setNichtAngereist] = useState([]);
+  const [aufenthalte, setAufenthalte] = useState([]);
+  const aufenthalteAktiv = module.some((m) => m.code === "buchungen" && m.aktiv);
   const [fehler, setFehler] = useState(null);
 
   const laden = useCallback(() => {
     const bis = isoDatum(plusTage(new Date(), 6));
-    Promise.all([api.get("/reservationsanfragen"), api.get(`/belegung?von=${heute}&bis=${bis}`), api.get("/belegung/nicht-angereist")])
-      .then(([a, w, n]) => { setAnfragen(a); setWoche(w); setNichtAngereist(n); })
+    Promise.all([api.get("/reservationsanfragen"), api.get(`/belegung?von=${heute}&bis=${bis}`), api.get("/belegung/nicht-angereist"),
+      api.get(`/aufenthalte?von=${heute}&bis=${heute}`)])
+      .then(([a, w, n, auf]) => { setAnfragen(a); setWoche(w); setNichtAngereist(n); setAufenthalte(auf); })
       .catch((e) => setFehler(e.message));
   }, [heute]);
   useEffect(laden, [laden]);
@@ -42,12 +45,16 @@ export default function Heute({ module = [] }) {
     const aktiv = (anfragen || []).filter((a) => AKTIV.has(a.status));
     return {
       anreisen: aktiv.filter((a) => a.gewuenscht_von === heute),
-      abreisen: aktiv.filter((a) => a.gewuenscht_bis === heute),
+      // Abreisen aus den Aufenthalten (nicht aus den Reservationen): zeigt, ob schon ausgecheckt ist,
+      // und erfasst auch Gäste ohne Reservation sowie verlängerte/verkürzte Aufenthalte.
+      // Noch auf dem Platz zuerst.
+      abreisen: aufenthalte.filter((b) => b.bis === heute)
+        .sort((x, y) => (x.status === "ausgecheckt") - (y.status === "ausgecheckt") || x.nachname.localeCompare(y.nachname)),
       // Anfragen mit neuer Mail des Gastes zuerst, dann die älteste unbearbeitete
       offen: (anfragen || []).filter((a) => ZU_BEARBEITEN.has(a.status) || a.neue_mails > 0)
         .sort((x, y) => (y.neue_mails > 0) - (x.neue_mails > 0) || x.eingangs_datum.localeCompare(y.eingangs_datum)),
     };
-  }, [anfragen, heute]);
+  }, [anfragen, aufenthalte, heute]);
 
   const zusammenfassung = anfragen
     ? [anzahl(anreisen.length, "Anreise", "Anreisen"), anzahl(abreisen.length, "Abreise", "Abreisen"),
@@ -94,7 +101,7 @@ export default function Heute({ module = [] }) {
       {anfragen && (
         <div className="heute-raster">
           <Liste titel="Anreisen heute" leer="Heute reist niemand an." eintraege={anreisen} />
-          <Liste titel="Abreisen heute" leer="Heute reist niemand ab." eintraege={abreisen} />
+          <AbreiseListe eintraege={abreisen} mitAufenthalt={aufenthalteAktiv} />
           <section className="heute-karte" aria-labelledby="h-offen">
             <h2 id="h-offen">Zu bearbeiten</h2>
             {offen.length === 0 && <p className="leer">Alle Anfragen sind bearbeitet.</p>}
@@ -137,6 +144,35 @@ function Liste({ titel, leer, eintraege }) {
                 <span className="zeile2">
                   <TypMarke code={a.stellplatz_typ} />
                   <span>{personen(a.anzahl_erwachsene, a.anzahl_kinder, a.anzahl_kleinkinder)}</span>
+                  {n ? <span>{anzahl(n, "Nacht", "Nächte")}</span> : null}
+                </span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function AbreiseListe({ eintraege, mitAufenthalt }) {
+  return (
+    <section className="heute-karte" aria-label="Abreisen heute">
+      <h2>Abreisen heute</h2>
+      {eintraege.length === 0 && <p className="leer">Heute reist niemand ab.</p>}
+      <ul className="heute-liste">
+        {eintraege.map((b) => {
+          const n = naechte(b.von, b.bis);
+          const weg = b.status === "ausgecheckt";
+          return (
+            <li key={b.buchung_id}>
+              <a href={mitAufenthalt ? `#/aufenthalte?id=${b.buchung_id}` : `#/belegung?tag=${b.von}&eintrag=${b.buchung_id}`}>
+                <span className="zeile1"><strong>{b.vorname} {b.nachname}</strong>
+                  <span className={`marke-status ton-${weg ? "aus" : "offen"}`}>{weg ? "Abgereist" : "Noch auf dem Platz"}</span></span>
+                <span className="zeile2">
+                  <TypMarke code={b.stellplatz_typ} />
+                  {b.platz && <span>Platz {b.platz}</span>}
+                  <span>{personen(b.anzahl_erwachsene, b.anzahl_kinder, b.anzahl_kleinkinder)}</span>
                   {n ? <span>{anzahl(n, "Nacht", "Nächte")}</span> : null}
                 </span>
               </a>
