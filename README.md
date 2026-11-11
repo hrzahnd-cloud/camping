@@ -22,7 +22,7 @@ wie bisher daneben (`/docs`). Phase 1 umfasst:
 | Bereich | Inhalt |
 |---|---|
 | Reservationen | Posteingang nach Ablagen (zu bearbeiten, warten auf Gast, akzeptiert, abgelehnt/storniert), Anfrage erfassen und ergänzen, Status setzen, Originalnachricht |
-| Belegung | Monat / Woche / freier Zeitraum; Zeitband oder Liste je Stellplatz-Typ (Zelt, Wohnwagen, Camper, Zwärgli, Spycher) mit Erwachsenen (E) und Kindern (K) |
+| Belegung | Monat / Woche / freier Zeitraum; Zeitband oder Liste je Stellplatz-Typ (Zelt, Wohnwagen, Camper, Zwärgli, Spycher) mit Erwachsenen (E) und Kindern (K). Die zuletzt gewählte Ansicht (Monat/Woche, Darstellung, Filter) bleibt im Browser gemerkt; Datum immer ab heute, freier Zeitraum wird nicht gemerkt |
 | Gäste | Suchen, erfassen, bearbeiten |
 | Einstellungen | Antwortvorlagen (DE/FR/IT/EN) mit Vorschau, Betriebsangaben (Signatur, Infoblock, IBAN/BIC, TWINT), MWST-Sätze je Gültigkeit, Postfach (Abrufstand, nicht zugeordnete Mails), Module ein-/ausschalten |
 

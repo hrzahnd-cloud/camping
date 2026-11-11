@@ -49,15 +49,37 @@ const hashParameter = () => new URLSearchParams(window.location.hash.split("?")[
 const istAufenthalt = (e) => e.art === "aufenthalt";
 const eintragStatus = (e) => (istAufenthalt(e) ? (e.status === "eingecheckt" ? "Eingecheckt" : "Abgereist") : statusName(e.status));
 
+// Zuletzt gewählte Ansicht je Browser merken (Monat/Woche, Darstellung, Filter).
+// Nicht gemerkt: Datum (immer ab heute) und der freie Zeitraum.
+const ANSICHT_SCHLUESSEL = "belegung.ansicht";
+const ERLAUBT = {
+  ansicht: ["monat", "woche"],
+  status: ["alle", "akzeptiert", "offen"],
+  darstellung: ["uebersicht", "zeitband", "liste"],
+};
+function gemerkt(feld, standard) {
+  try {
+    const wert = JSON.parse(window.localStorage.getItem(ANSICHT_SCHLUESSEL) || "{}")[feld];
+    return ERLAUBT[feld].includes(wert) ? wert : standard;
+  } catch { return standard; }
+}
+function merken(werte) {
+  try { window.localStorage.setItem(ANSICHT_SCHLUESSEL, JSON.stringify(werte)); } catch { /* ohne Speicher: Standard */ }
+}
+
 export default function Belegung({ module = [] }) {
   const aufenthalteAktiv = module.some((m) => m.code === "buchungen" && m.aktiv);
   const heute = heuteIso();
   const start = hashParameter();
-  const [ansicht, setAnsicht] = useState("monat");
+  const [ansicht, setAnsicht] = useState(() => gemerkt("ansicht", "monat"));
   const [bezug, setBezug] = useState(start.get("tag") ? ausIso(start.get("tag")) : new Date());
   const [frei, setFrei] = useState({ von: heute, bis: isoDatum(plusTage(new Date(), 13)) });
-  const [status, setStatus] = useState("alle");
-  const [darstellung, setDarstellung] = useState("uebersicht");
+  const [status, setStatus] = useState(() => gemerkt("status", "alle"));
+  const [darstellung, setDarstellung] = useState(() => gemerkt("darstellung", "uebersicht"));
+  // «Freier Zeitraum» ist eine Suche für den Moment: die letzte Monat-/Wochenwahl bleibt gemerkt
+  const [gemerkteAnsicht, setGemerkteAnsicht] = useState(() => gemerkt("ansicht", "monat"));
+  useEffect(() => { if (ansicht !== "frei") setGemerkteAnsicht(ansicht); }, [ansicht]);
+  useEffect(() => { merken({ ansicht: gemerkteAnsicht, status, darstellung }); }, [gemerkteAnsicht, status, darstellung]);
   const [daten, setDaten] = useState(null);
   const [fehler, setFehler] = useState(null);
   // Schublade: { art: "tag", datum } | { art: "eintrag", id } | { art: "checkin", eintrag? }
